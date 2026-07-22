@@ -1,0 +1,102 @@
+[
+  {
+    "name": "key-order",
+    "value": {
+      "b": 1,
+      "a": 2,
+      "c": 3
+    },
+    "canonical": "{\"a\":2,\"b\":1,\"c\":3}",
+    "sha256": "e145110e712e3ed0a6b233551b27a90aa39b4c93ed67e111ba2002d16e5ed1fa"
+  },
+  {
+    "name": "nested-object-and-array",
+    "value": {
+      "z": {
+        "y": 2,
+        "x": 1
+      },
+      "a": [
+        3,
+        2,
+        1
+      ],
+      "m": {
+        "n": [
+          {
+            "q": 1,
+            "p": 2
+          }
+        ]
+      }
+    },
+    "canonical": "{\"a\":[3,2,1],\"m\":{\"n\":[{\"p\":2,\"q\":1}]},\"z\":{\"x\":1,\"y\":2}}",
+    "sha256": "0f9d1cdc18b850d8db1a9fd05c4f3de2368d59191642f6b664094baa43f4bcd7"
+  },
+  {
+    "name": "unicode",
+    "value": {
+      "note": "café — Ünïcödé — 🔒 lock"
+    },
+    "canonical": "{\"note\":\"café — Ünïcödé — 🔒 lock\"}",
+    "sha256": "e795da130bef43f2538471e0bad2a705f1851f09027334e99ef4f56dcbe350f6"
+  },
+  {
+    "name": "scalars",
+    "value": {
+      "i": 0,
+      "big": 1234567890,
+      "neg": -5,
+      "t": true,
+      "f": false,
+      "z": null,
+      "s": "x"
+    },
+    "canonical": "{\"big\":1234567890,\"f\":false,\"i\":0,\"neg\":-5,\"s\":\"x\",\"t\":true,\"z\":null}",
+    "sha256": "1d51e9418db9bea4be75fbd0ebf6bc11b1725f404c5e8ad573b7b1e42f4e85e5"
+  },
+  {
+    "name": "max-safe-int",
+    "value": {
+      "n": 9007199254740991
+    },
+    "canonical": "{\"n\":9007199254740991}",
+    "sha256": "e1da48c6a6089f06ecb4e0a2259e658e3786b2420f52baccdf929ec6460d7b41"
+  },
+  {
+    "name": "floats",
+    "value": {
+      "a": 0.1,
+      "b": 1.5,
+      "c": -2.25,
+      "d": 1e-7
+    },
+    "canonical": "{\"a\":0.1,\"b\":1.5,\"c\":-2.25,\"d\":1e-7}",
+    "sha256": "b80341777c04a1dec7a6ba29960c2d8ffee5184303e68f0c140b0dd1bcad5ece"
+  },
+  {
+    "name": "non-ascii-keys",
+    "value": {
+      "é": 1,
+      "Ä": 2,
+      "a": 3,
+      "🔒": 4
+    },
+    "canonical": "{\"a\":3,\"Ä\":2,\"é\":1,\"🔒\":4}",
+    "sha256": "9815af701caaabb324a5008bef7b1068e7d3b9e0b72855ac6d38d552fd0d5f4a"
+  },
+  {
+    "name": "control-chars",
+    "value": {
+      "s": "\b\t\n\f\r\u0001\u001f"
+    },
+    "canonical": "{\"s\":\"\\b\\t\\n\\f\\r\\u0001\\u001f\"}",
+    "sha256": "1b21e9fd01225a72cba6747f49210c98e0af3d55ab6c7ada5a41e67a74379dd1"
+  },
+  {
+    "name": "empty",
+    "value": {},
+    "canonical": "{}",
+    "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  }
+]
