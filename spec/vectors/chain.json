@@ -1,0 +1,101 @@
+{
+  "records": [
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "spec_version": "auditable-mcp/0.1",
+        "ts": "1970-01-01T00:16:41.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.query",
+        "mutates": false,
+        "egress": true,
+        "target_resource": {
+          "kind": "database",
+          "ref": "analytics-postgres"
+        },
+        "outcome": "attempted",
+        "action_context": {
+          "dialect": "postgres",
+          "tables_accessed": [
+            "users",
+            "payments"
+          ]
+        },
+        "action_context_hash": "sha256:8e7d5df037445c61c57929121dd6312029c287c9789dabdc78b78b7861ec2967"
+      },
+      "seq": 0,
+      "host_ts": "2026-07-15T00:00:01.000Z",
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "record_hash": "6c58d30a5ee72fb732ed81f50bfedaeb6ef9cbf488e34c93ccd75f758b6ff127"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "spec_version": "auditable-mcp/0.1",
+        "ts": "1970-01-01T00:16:41.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.query",
+        "mutates": false,
+        "egress": true,
+        "target_resource": {
+          "kind": "database",
+          "ref": "analytics-postgres"
+        },
+        "outcome": "success",
+        "action_context": {
+          "dialect": "postgres",
+          "tables_accessed": [
+            "users",
+            "payments"
+          ]
+        },
+        "action_context_hash": "sha256:8e7d5df037445c61c57929121dd6312029c287c9789dabdc78b78b7861ec2967"
+      },
+      "seq": 1,
+      "host_ts": "2026-07-15T00:00:02.000Z",
+      "previous_hash": "6c58d30a5ee72fb732ed81f50bfedaeb6ef9cbf488e34c93ccd75f758b6ff127",
+      "record_hash": "fe2e769670037b5e299294f80a12d56d9c53f437fab47f681cb52183ff7b8607"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "spec_version": "auditable-mcp/0.1",
+        "ts": "1970-01-01T00:16:42.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "analysis_results"
+        },
+        "outcome": "attempted"
+      },
+      "seq": 2,
+      "host_ts": "2026-07-15T00:00:03.000Z",
+      "previous_hash": "fe2e769670037b5e299294f80a12d56d9c53f437fab47f681cb52183ff7b8607",
+      "record_hash": "547faee0538cc3bb7946edfa45f8e08952b57fb5ea360d7add05d8a986dde5f1"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "spec_version": "auditable-mcp/0.1",
+        "ts": "1970-01-01T00:16:42.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "analysis_results"
+        },
+        "outcome": "success"
+      },
+      "seq": 3,
+      "host_ts": "2026-07-15T00:00:04.000Z",
+      "previous_hash": "547faee0538cc3bb7946edfa45f8e08952b57fb5ea360d7add05d8a986dde5f1",
+      "record_hash": "0079d759f52e312c7035dce3780bcc9a2300b92d82a50dacc434f5c9f0bda26b"
+    }
+  ],
+  "digest": "0079d759f52e312c7035dce3780bcc9a2300b92d82a50dacc434f5c9f0bda26b"
+}

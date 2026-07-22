@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Distribution name is `auditable-mcp-sdk`; the bare `auditable-mcp` name is left for the spec
+# itself. The import package stays `auditable_mcp`.
+[project]
+name = "auditable-mcp-sdk"
+version = "0.1.0"
+description = "Auditable MCP SDK — a protocol machine for tool self-attestation into a tamper-evident host ledger (auditable-mcp/0.1)."
+readme = "README.md"
+# Developed and pinned on 3.14.6 (see .python-version); the published floor is kept lower for OSS reach.
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Satoshi Imai" }]
+keywords = ["mcp", "audit", "tamper-evident", "ledger", "rfc8785", "ed25519"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.7",
+    "rfc8785>=0.1.4",
+    "cryptography>=42",
+]
+
+# The core is a pure protocol machine with no transport dependency. There is no bundled MCP binding:
+# the MCP SDK has no lifecycle hook for receiving custom methods (its receive loop rejects any method
+# outside its fixed request union), so an integrator wires the `AuditTransport` seam over MCP directly,
+# importing the official `mcp` package alongside this one. The KMS adapter takes an injected client and
+# never imports boto3, so `[aws]` only provides the client for users who want it.
+[project.optional-dependencies]
+aws = ["boto3>=1.34"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "jsonschema>=4.21",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/auditable_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+# Surface typeshed @deprecated (PEP 702) usages in CI, matching pyright's default reportDeprecated.
+enable_error_code = ["deprecated"]
