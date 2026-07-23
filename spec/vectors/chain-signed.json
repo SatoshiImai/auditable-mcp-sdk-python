@@ -1,0 +1,53 @@
+{
+  "records": [
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-00000000000a",
+        "spec_version": "auditable-mcp/0.1.1",
+        "ts": "2026-07-15T00:00:10.000Z",
+        "call_id": "call_l2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "action_context_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "signer_seq": 42,
+        "key_id": "tool-key-2026",
+        "signature": "ZmFrZS1zaWduYXR1cmU="
+      },
+      "seq": 0,
+      "host_ts": "2026-07-15T00:00:20.000Z",
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "record_hash": "d895336dbc0022e923340f3d217536d1dfdfb9b7cdd5a9d5b7da1ffda8b87b76"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-00000000000a",
+        "spec_version": "auditable-mcp/0.1.1",
+        "ts": "2026-07-15T00:00:11.000Z",
+        "call_id": "call_l2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "success",
+        "action_context_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "signer_seq": 43,
+        "key_id": "tool-key-2026",
+        "signature": "b3V0Y29tZS1zaWduYXR1cmU="
+      },
+      "seq": 1,
+      "host_ts": "2026-07-15T00:00:21.000Z",
+      "previous_hash": "d895336dbc0022e923340f3d217536d1dfdfb9b7cdd5a9d5b7da1ffda8b87b76",
+      "record_hash": "d19cf80da9ba7ee6c1602c2e5eeeb9ae5f8c8bd37820c710a6ba4773fb598689"
+    }
+  ],
+  "digest": "d19cf80da9ba7ee6c1602c2e5eeeb9ae5f8c8bd37820c710a6ba4773fb598689"
+}

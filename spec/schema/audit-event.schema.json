@@ -9,7 +9,7 @@
     },
     "spec_version": {
       "type": "string",
-      "const": "auditable-mcp/0.1"
+      "const": "auditable-mcp/0.1.1"
     },
     "ts": {
       "type": "string",
@@ -64,7 +64,12 @@
       ]
     },
     "reason": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "hash-mismatch",
+        "host-rejected",
+        "host-unavailable"
+      ]
     },
     "action_context": {
       "type": "object",
@@ -77,16 +82,18 @@
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
-    "sequence": {
+    "signer_seq": {
       "type": "integer",
       "minimum": 0,
       "maximum": 9007199254740991
     },
     "key_id": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "signature": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$"
     }
   },
   "required": [
@@ -100,5 +107,24 @@
     "target_resource",
     "outcome"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "outcome"
+        ],
+        "properties": {
+          "outcome": {
+            "const": "aborted"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "reason"
+        ]
+      }
+    }
+  ]
 }

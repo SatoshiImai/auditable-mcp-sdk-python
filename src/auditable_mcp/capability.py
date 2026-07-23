@@ -18,11 +18,12 @@ _LEVEL_RANK = {Level.L1: 1, Level.L2: 2}
 
 @dataclass(frozen=True)
 class NegotiationResult:
-    """The outcome of a capability exchange: the requirement, the offer, and whether it fits."""
+    """The outcome of a capability exchange: the requirement, the offer, and the fit."""
 
     required: AuditCapability
     offered: AuditCapability
     satisfied: bool
+    version_match: bool
     # end class
 
 
@@ -43,12 +44,18 @@ def capability_satisfies(offered: AuditCapability, required: AuditCapability) ->
 def negotiate(required: AuditCapability, offered: AuditCapability) -> NegotiationResult:
     """Compare a tool's offered capability against a host requirement (§6.1).
 
+    A `0.x` draft has no on-the-wire compatibility window, so `satisfied` requires both a level fit
+    and an exact `spec_version` match; `version_match` surfaces a version mismatch on its own.
+
     Args:
         required: The capability the host requires.
         offered: The capability the tool declares it supports.
 
     Returns:
-        A result carrying both capabilities and whether the offer satisfies the requirement.
+        A result carrying both capabilities, whether the offer satisfies the requirement, and the
+        version match.
     """
-    return NegotiationResult(required=required, offered=offered, satisfied=capability_satisfies(offered, required))
+    version_match = offered.spec_version == required.spec_version
+    satisfied = capability_satisfies(offered, required) and version_match
+    return NegotiationResult(required=required, offered=offered, satisfied=satisfied, version_match=version_match)
     # end def

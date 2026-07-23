@@ -1,0 +1,96 @@
+[
+  {
+    "name": "numeric-domain-overflow",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.1.1",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "action_context": {
+        "rows": 9007199254740992
+      }
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
+    "name": "non-attempted-outcome-on-attempt",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.1.1",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "success",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
+    "name": "malformed-action-context-hash",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.1.1",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context_hash": "not-a-sha256-hash"
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
+    "name": "aborted-missing-reason",
+    "channel": "outcome",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.1.1",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "aborted"
+    },
+    "expect": {
+      "sealed": false,
+      "anomaly_kind": "schema-invalid"
+    }
+  }
+]

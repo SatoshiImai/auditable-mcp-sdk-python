@@ -1,5 +1,9 @@
 """Unit tests for the durable-ledger repository interface and host persistence."""
 
+import logging
+
+import pytest
+
 from auditable_mcp.hashing import GENESIS_HASH
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
@@ -78,7 +82,7 @@ def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1.1',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
@@ -183,7 +187,7 @@ async def test_resume_reconstructs_replay_detection() -> None:
     host2 = await AuditHost.resume('tenant-a', repository=repo, clock=_Clock())
     response = await host2.handle_attempt(attempt)
     assert isinstance(response, RejectResponse)
-    assert response.reason == 'attempt-replay'
+    assert response.reason == 'replay-detected'
     # end def
 
 
@@ -203,14 +207,16 @@ async def test_attempt_persistence_failure_fails_closed_and_is_retryable() -> No
     # end def
 
 
-async def test_outcome_persistence_failure_is_flagged() -> None:
-    """A persistence failure on an outcome is flagged (no response channel) and nothing is committed."""
+async def test_outcome_persistence_failure_is_logged_not_flagged(caplog: pytest.LogCaptureFixture) -> None:
+    """A persistence failure on an outcome is a completeness gap (§10.8): logged, not a Tier-1 anomaly (§7.6)."""
     repo = _FlakyRepository()
     host = AuditHost('tenant-a', repository=repo, clock=_Clock())
     event_id = '00000000-0000-4000-8000-000000000001'
     await host.handle_attempt(_attempt(event_id))
     repo.fail = True
-    await host.handle_outcome(_attempt(event_id, outcome='success'))
-    assert any(a.kind == 'persistence-failure' for a in host.anomalies())
+    with caplog.at_level(logging.ERROR, logger='auditable_mcp.host'):
+        await host.handle_outcome(_attempt(event_id, outcome='success'))
+    assert host.anomalies() == []
     assert len(host.records()) == 1
+    assert any('could not persist' in record.message for record in caplog.records)
     # end def

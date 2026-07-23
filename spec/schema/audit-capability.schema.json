@@ -2,6 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "spec_version": {
+      "type": "string"
+    },
     "level": {
       "type": "string",
       "enum": [
@@ -15,6 +18,7 @@
     }
   },
   "required": [
+    "spec_version",
     "level",
     "attempt"
   ],

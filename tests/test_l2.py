@@ -4,17 +4,17 @@ import base64
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2 import (
     BoundaryObserver,
-    EcdsaSignatureVerifier,
-    Ed25519SignatureVerifier,
     Ed25519Signer,
     EgressObservation,
     KeyRegistry,
+    KeyRegistryVerifier,
+    SignatureAlgorithm,
     generate_tool_key,
     reconcile,
     sign_event,
@@ -22,9 +22,21 @@ from auditable_mcp.l2 import (
     verify_ed25519_signature,
 )
 from auditable_mcp.ledger import Ledger
-from auditable_mcp.models import AuditCapability, Level
+from auditable_mcp.models import SPEC_VERSION, AuditCapability, Level
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.verify import verify_ledger
+
+
+def _ecdsa_sign(
+    event: dict[str, object], key_id: str, signer_seq: int, private_key: ec.EllipticCurvePrivateKey
+) -> dict[str, object]:
+    """Sign an event as ECDSA P-256 with a local key, in the wire r||s form (§5.1)."""
+    base = {**event, 'key_id': key_id, 'signer_seq': signer_seq}
+    der = private_key.sign(signature_payload(base), ec.ECDSA(hashes.SHA256()))
+    r, s = decode_dss_signature(der)
+    raw = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
+    return {**base, 'signature': base64.b64encode(raw).decode('ascii')}
+    # end def
 
 
 class _Clock:
@@ -66,7 +78,7 @@ def _event(event_id: str = '00000000-0000-4000-8000-000000000001', **overrides: 
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1.1',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
@@ -85,7 +97,7 @@ def test_sign_then_verify_roundtrips() -> None:
     key = generate_tool_key('k1')
     signed = sign_event(_event(), key.key_id, 0, key.private_key)
     assert signed['key_id'] == 'k1'
-    assert signed['sequence'] == 0
+    assert signed['signer_seq'] == 0
     assert verify_ed25519_signature(signed, key.public_key)
     # end def
 
@@ -118,7 +130,7 @@ def test_non_base64_signature_is_rejected_gracefully() -> None:
 
 async def test_verifier_reports_unknown_key() -> None:
     """The verifier rejects an event whose key_id was never onboarded."""
-    verifier = Ed25519SignatureVerifier(KeyRegistry())
+    verifier = KeyRegistryVerifier(KeyRegistry())
     key = generate_tool_key('k1')
     signed = sign_event(_event(), key.key_id, 0, key.private_key)
     assert await verifier.verify(signed) == 'unknown-key'
@@ -130,7 +142,7 @@ async def test_verifier_accepts_a_registered_valid_signature() -> None:
     key = generate_tool_key('k1')
     registry = KeyRegistry()
     registry.register_tool_key(key)
-    verifier = Ed25519SignatureVerifier(registry)
+    verifier = KeyRegistryVerifier(registry)
     signed = sign_event(_event(), key.key_id, 0, key.private_key)
     assert await verifier.verify(signed) is None
     # end def
@@ -139,26 +151,50 @@ async def test_verifier_accepts_a_registered_valid_signature() -> None:
 async def test_verifier_reports_forged_signature() -> None:
     """A signature that does not match the registered key is signature-invalid."""
     signing_key = generate_tool_key('k1')
-    other_key = generate_tool_key('k1')
+    other_key = generate_tool_key('other')
     registry = KeyRegistry()
-    registry.register('k1', other_key.public_key)  # wrong public key registered under the same id
-    verifier = Ed25519SignatureVerifier(registry)
+    registry.register('k1', other_key.public_key, SignatureAlgorithm.ED25519)  # wrong key under the same id
+    verifier = KeyRegistryVerifier(registry)
     signed = sign_event(_event(), signing_key.key_id, 0, signing_key.private_key)
     assert await verifier.verify(signed) == 'signature-invalid'
     # end def
 
 
-async def test_ecdsa_verifier_roundtrips_and_reports_unknown_key() -> None:
-    """EcdsaSignatureVerifier verifies a local ECDSA signature and reports unknown-key symmetrically."""
-    private_key = ec.generate_private_key(ec.SECP256R1())
-    base = {**_event(), 'key_id': 'k1', 'sequence': 0}
-    signature = base64.b64encode(private_key.sign(signature_payload(base), ec.ECDSA(hashes.SHA256())))
-    signed = {**base, 'signature': signature.decode('ascii')}
+async def test_verifier_handles_a_heterogeneous_fleet() -> None:
+    """One verifier dispatches Ed25519 and ECDSA P-256 keys by the registry's algorithm (§5.1)."""
+    ed = generate_tool_key('ed-tool')
+    ec_private = ec.generate_private_key(ec.SECP256R1())
+    registry = KeyRegistry()
+    registry.register_tool_key(ed)
+    registry.register('ec-tool', ec_private.public_key(), SignatureAlgorithm.ECDSA_P256_SHA256)
+    verifier = KeyRegistryVerifier(registry)
 
-    registry: KeyRegistry[EllipticCurvePublicKey] = KeyRegistry()
-    registry.register('k1', private_key.public_key())
-    assert await EcdsaSignatureVerifier(registry).verify(signed) is None
-    assert await EcdsaSignatureVerifier(KeyRegistry()).verify(signed) == 'unknown-key'
+    ed_signed = sign_event(_event(), ed.key_id, 0, ed.private_key)
+    assert await verifier.verify(ed_signed) is None
+    ec_signed = _ecdsa_sign(_event('00000000-0000-4000-8000-000000000002'), 'ec-tool', 0, ec_private)
+    assert await verifier.verify(ec_signed) is None
+    forged = _ecdsa_sign(
+        _event('00000000-0000-4000-8000-000000000003'), 'ec-tool', 1, ec.generate_private_key(ec.SECP256R1())
+    )
+    assert await verifier.verify(forged) == 'signature-invalid'
+    # end def
+
+
+def test_key_registry_lifecycle() -> None:
+    """Re-registering a key_id with a different key is forbidden; revoke is forward-only (§10.9)."""
+    registry = KeyRegistry()
+    a = generate_tool_key('tool-1')
+    b = generate_tool_key('tool-1')
+    registry.register_tool_key(a)
+    registry.register_tool_key(a)  # idempotent
+    try:
+        registry.register_tool_key(b)
+        raise AssertionError('expected a rotation conflict')
+    except ValueError:
+        pass
+        # end try
+    registry.revoke('tool-1')
+    assert registry.get('tool-1') is None
     # end def
 
 
@@ -166,7 +202,7 @@ async def test_signer_emits_a_monotonic_sequence() -> None:
     """Ed25519Signer stamps 0, 1, 2, … across successive events."""
     key = generate_tool_key('k1')
     signer = Ed25519Signer.from_tool_key(key)
-    assert [(await signer.sign(_event()))['sequence'] for _ in range(3)] == [0, 1, 2]
+    assert [(await signer.sign(_event()))['signer_seq'] for _ in range(3)] == [0, 1, 2]
     # end def
 
 
@@ -176,7 +212,10 @@ async def test_end_to_end_l2_without_stubs() -> None:
     registry = KeyRegistry()
     registry.register_tool_key(tool_key)
     host = AuditHost(
-        'tenant-a', AuditCapability(level=Level.L2), verifier=Ed25519SignatureVerifier(registry), clock=_Clock()
+        'tenant-a',
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        verifier=KeyRegistryVerifier(registry),
+        clock=_Clock(),
     )
     session = AmcpSession(
         InProcessTransport(host),
@@ -189,7 +228,7 @@ async def test_end_to_end_l2_without_stubs() -> None:
         # end with
     records = host.records()
     assert [r.event['outcome'] for r in records] == ['attempted', 'success']
-    assert [r.event['sequence'] for r in records] == [0, 1]
+    assert [r.event['signer_seq'] for r in records] == [0, 1]
     for record in records:
         assert verify_ed25519_signature(record.event, tool_key.public_key)
         # end for

@@ -23,12 +23,20 @@ from auditable_mcp import reasons
 from auditable_mcp.canonical import hash_canonical
 from auditable_mcp.clock import Clock, now_iso
 from auditable_mcp.hashing import compute_record_hash
-from auditable_mcp.models import AcceptResponse, AuditEvent, Outcome, RejectResponse, TargetResource
+from auditable_mcp.models import (
+    SPEC_VERSION,
+    AbortReason,
+    AcceptResponse,
+    AuditEvent,
+    Outcome,
+    RejectResponse,
+    TargetResource,
+)
 from auditable_mcp.transport import AuditTransport
 
 
 class EventSigner(Protocol):
-    """Stamps an event with `key_id`, `sequence`, and `signature` (Level 2, §5, §8.2).
+    """Stamps an event with `key_id`, `signer_seq`, and `signature` (Level 2, §5, §8.2).
 
     `sign` is async because a production signer typically calls a network HSM/KMS; a local signer
     just returns synchronously under the async signature.
@@ -181,10 +189,11 @@ class AuditedAction:
         self.accept: AcceptResponse | None = None
         # end def
 
-    async def _build(self, outcome: Outcome, reason: str | None = None) -> dict[str, object]:
+    async def _build(self, outcome: Outcome, reason: AbortReason | None = None) -> dict[str, object]:
         """Build and stamp the wire event for `outcome`, reusing the shared correlation id."""
         event = AuditEvent(
             id=self._id,
+            spec_version=SPEC_VERSION,
             ts=self._session._deps.now(),
             call_id=self._session._call_id,
             action_type=self._action_type,
@@ -199,7 +208,7 @@ class AuditedAction:
         return await self._session._stamp(event.to_wire())
         # end def
 
-    async def _emit_aborted(self, reason: str) -> None:
+    async def _emit_aborted(self, reason: AbortReason) -> None:
         """Emit an aborted outcome recording why the domain action was not performed (§7.2)."""
         await self._session._transport.send_outcome(await self._build(Outcome.ABORTED, reason))
         # end def
@@ -211,7 +220,9 @@ class AuditedAction:
 
         if not isinstance(response, AcceptResponse):
             # reject (invalid) or unavailable (not persisted): do not act; signal aborted (§11.3).
-            reason = reasons.HOST_REJECTED if isinstance(response, RejectResponse) else reasons.HOST_UNAVAILABLE
+            reason: AbortReason = (
+                reasons.HOST_REJECTED if isinstance(response, RejectResponse) else reasons.HOST_UNAVAILABLE
+            )
             await self._emit_aborted(reason)
             raise AmcpAbortedError(self._action_type, self._target.ref, reason)
             # end if

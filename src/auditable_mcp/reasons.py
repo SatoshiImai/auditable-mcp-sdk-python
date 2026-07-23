@@ -1,23 +1,35 @@
-"""Reason and anomaly codes shared across modules or carried on the wire (§7.1, §7.2, §7.4).
+"""The §7.6 two-tier reason and anomaly vocabulary.
 
-Codes local to a single module are defined in that module.
+Tier 1 (normative, fixed) codes are the only ones carried on the wire or sealed into the ledger.
+They occupy three distinct code spaces — a host reject/unavailable `reason`, a tool abort `reason`,
+and a ledger anomaly `kind` — disambiguated by the field they appear in (so `schema-invalid` and
+`signature-invalid` legitimately appear in more than one space). Every reject, unavailable, abort,
+and anomaly condition this SDK produces maps to exactly one Tier-1 code; finer causes are Tier-2
+local diagnostics that MUST NOT reach the wire or ledger.
+
+The constants are `Final` literals so they type-check against the `Literal`-typed model fields.
 """
 
-# Terminal-outcome reasons a tool emits on abort (§7.2 RECOMMENDED).
-HASH_MISMATCH = 'hash-mismatch'
-HOST_REJECTED = 'host-rejected'
-HOST_UNAVAILABLE = 'host-unavailable'
+from typing import Final
 
-# Host reject reasons and anomaly kinds (§7.1, §7.4).
-SCHEMA_INVALID = 'schema-invalid'
-ATTEMPT_MUST_BE_ATTEMPTED = 'attempt-must-be-attempted'
-NUMERIC_DOMAIN = 'numeric-domain'
-L2_UNSIGNED = 'l2-unsigned'
-ATTEMPT_REPLAY = 'attempt-replay'
-PERSISTENCE_FAILURE = 'persistence-failure'
-SIGNER_SEQUENCE_REPLAY = 'signer-sequence-replay'
-SIGNER_SEQUENCE_GAP = 'signer-sequence-gap'
-UNKNOWN_KEY = 'unknown-key'
-SIGNATURE_INVALID = 'signature-invalid'
-OUTCOME_AFTER_REJECT = 'outcome-after-reject'
-OUTCOME_WITHOUT_ATTEMPT = 'outcome-without-attempt'
+# Host reject / unavailable reason codes (§7.6). The tool branches on these.
+SCHEMA_INVALID: Final = 'schema-invalid'
+REPLAY_DETECTED: Final = 'replay-detected'
+SIGNATURE_INVALID: Final = 'signature-invalid'
+L2_UNSIGNED: Final = 'l2-unsigned'
+UNKNOWN_KEY: Final = 'unknown-key'
+INTERNAL_ERROR: Final = 'internal-error'
+
+# Tool abort reason codes, recorded on a fail-closed `aborted` outcome (§7.2, §7.6).
+HASH_MISMATCH: Final = 'hash-mismatch'
+HOST_REJECTED: Final = 'host-rejected'
+HOST_UNAVAILABLE: Final = 'host-unavailable'
+
+# Ledger anomaly kinds a verifier reports (§7.6). SCHEMA_INVALID / SIGNATURE_INVALID above are reused
+# here (a distinct code space, disambiguated by the anomaly `kind` field).
+RECORD_HASH_MISMATCH: Final = 'record-hash-mismatch'
+DIGEST_MISMATCH: Final = 'digest-mismatch'
+SEQ_GAP: Final = 'seq-gap'
+SIGNER_SEQ_GAP: Final = 'signer-seq-gap'
+ORPHANED_OUTCOME: Final = 'orphaned-outcome'
+UNREPORTED_EGRESS: Final = 'unreported-egress'

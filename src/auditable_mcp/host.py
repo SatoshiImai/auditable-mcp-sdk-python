@@ -7,23 +7,35 @@ connection; that routing is the integrator's concern, above this SDK.
 
 The host validates ledger-integrity requirements before sealing (§7.1); it never authorizes the
 tool's domain action (§2). Under Level 2 it defers signature checking to an injected
-`SignatureVerifier` (the concrete Ed25519 verifier lives in the `l2` layer), while sequence tracking
+`SignatureVerifier` (the concrete registry-backed verifier lives in the `l2` layer), while sequence tracking
 and anomaly flagging are host logic. A persistence failure fails closed with a retryable
 `unavailable` (§7.1).
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Final, Protocol
 
 from auditable_mcp import fields, reasons
 from auditable_mcp.canonical import has_unsafe_number
 from auditable_mcp.clock import Clock, SystemClock
 from auditable_mcp.ledger import Ledger, SealedRecord
-from auditable_mcp.models import AttemptResponse, AuditCapability, Level, Outcome, first_validation_error
+from auditable_mcp.models import (
+    SPEC_VERSION,
+    AttemptResponse,
+    AuditCapability,
+    AuditCapabilityInput,
+    Level,
+    Outcome,
+    RejectReason,
+    first_validation_error,
+)
 from auditable_mcp.storage.repository import LedgerRepository, RepositoryError
 from auditable_mcp.transport import accept, reject, unavailable
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -44,11 +56,32 @@ class SignatureVerifier(Protocol):
     KMS; a local verifier just returns synchronously under the async signature.
     """
 
-    async def verify(self, event: dict[str, object]) -> str | None:
-        """Return a reject reason (e.g. `unknown-key`, `signature-invalid`), or None if the signature verifies."""
+    async def verify(self, event: dict[str, object]) -> RejectReason | None:
+        """Return a Tier-1 reject reason (`unknown-key` / `signature-invalid`), or None if it verifies (§7.6)."""
         ...
 
     # end class
+
+
+# The host's own capability defaults, used only to complete a partial self-declaration. These are the
+# SDK declaring the version/level/attempt it ships — not a parser fallback. An incoming peer capability
+# is validated by the strict AuditCapability model (all fields REQUIRED, §6.1), which rejects a missing
+# field rather than defaulting it, so version negotiation cannot be bypassed by omission.
+_HOST_CAPABILITY_DEFAULTS: Final[dict[str, object]] = {
+    'spec_version': SPEC_VERSION,
+    'level': Level.L1,
+    'attempt': 'request',
+}
+
+
+def _resolve_capability(capability: AuditCapability | AuditCapabilityInput | None) -> AuditCapability:
+    """Build the host's own required capability, filling unset fields from the SDK's defaults (§6.1)."""
+    if isinstance(capability, AuditCapability):
+        return capability
+        # end if
+    overrides = capability if capability is not None else {}
+    return AuditCapability.model_validate({**_HOST_CAPABILITY_DEFAULTS, **overrides})
+    # end def
 
 
 class AuditHost:
@@ -57,7 +90,7 @@ class AuditHost:
     def __init__(
         self,
         partition: str,
-        capability: AuditCapability | None = None,
+        capability: AuditCapability | AuditCapabilityInput | None = None,
         *,
         verifier: SignatureVerifier | None = None,
         repository: LedgerRepository | None = None,
@@ -72,7 +105,7 @@ class AuditHost:
         Raises:
             ValueError: If the required level is Level 2 but no `verifier` was provided.
         """
-        self._capability = capability if capability is not None else AuditCapability()
+        self._capability = _resolve_capability(capability)
         if self._capability.level == Level.L2 and verifier is None:
             raise ValueError('an L2 host requires a SignatureVerifier')
             # end if
@@ -93,7 +126,7 @@ class AuditHost:
     async def resume(
         cls,
         partition: str,
-        capability: AuditCapability | None = None,
+        capability: AuditCapability | AuditCapabilityInput | None = None,
         *,
         repository: LedgerRepository,
         verifier: SignatureVerifier | None = None,
@@ -103,8 +136,8 @@ class AuditHost:
 
         The chain state (next `seq`, tail link) and the L2 replay/sequence state are reconstructed
         from the stored records, so post-restart appends link correctly and replays are still caught.
-        Reject memory (`outcome-after-reject`) is not persisted, so an outcome for a pre-restart
-        rejected id degrades to `outcome-without-attempt`.
+        Reject memory is not persisted, so an outcome for a pre-restart rejected id is still flagged
+        `orphaned-outcome`, as a never-accepted one.
         """
         host = cls(partition, capability, verifier=verifier, repository=repository, clock=clock)
         records = await repository.read_all(partition)
@@ -158,20 +191,20 @@ class AuditHost:
         self._anomalies.append(IntegrityAnomaly(id=event_id, kind=kind, detail=detail))
         # end def
 
-    async def _check_l2(self, event: dict[str, object]) -> str | None:
-        """Verify the L2 signature and per-key sequence; return a reject reason, or None (no-op under L1).
+    async def _check_l2(self, event: dict[str, object]) -> RejectReason | None:
+        """Verify the L2 signature and per-key signer_seq; return a reject reason, or None (no-op under L1).
 
-        Unsigned / unknown-key / forged / replayed records are rejected. A forward sequence gap is
-        flagged but not rejected — the missing event cannot be recovered (§7.4).
+        Unsigned / unknown-key / forged records and a replayed signer_seq are rejected. A forward gap
+        is flagged but not rejected — the missing event cannot be recovered (§7.4, §7.6).
         """
         if self._capability.level != Level.L2:
             return None
             # end if
         key_id = event.get(fields.KEY_ID)
         signature = event.get(fields.SIGNATURE)
-        sequence = event.get(fields.SEQUENCE)
-        if not signature or not isinstance(key_id, str) or not isinstance(sequence, int):
-            self._flag(_event_id(event), reasons.L2_UNSIGNED, 'L2 requires signature, key_id, and sequence')
+        signer_seq = event.get(fields.SIGNER_SEQ)
+        if not signature or not isinstance(key_id, str) or not isinstance(signer_seq, int):
+            self._flag(_event_id(event), reasons.L2_UNSIGNED, 'L2 requires signature, key_id, and signer_seq')
             return reasons.L2_UNSIGNED
             # end if
         # A verifier is guaranteed present under L2 (enforced in __init__).
@@ -181,20 +214,22 @@ class AuditHost:
             self._flag(_event_id(event), reason, 'signature verification failed')
             return reason
             # end if
-        # The first event from a key only establishes the baseline: with no prior observation there is
-        # nothing to have skipped, so neither replay nor gap applies (a tool's per-key start is arbitrary,
-        # and cross-partition interleaving makes it unknowable from one partition, §10.5).
+        # The first signer_seq from a key only establishes the baseline: with no prior observation
+        # there is nothing to have skipped, so neither replay nor gap applies (a tool's per-key start is
+        # arbitrary, and cross-partition interleaving makes it unknowable from one partition, §7.4, §10.5).
         last = self._last_seq_by_key.get(key_id)
         if last is not None:
-            if sequence <= last:
-                self._flag(_event_id(event), reasons.SIGNER_SEQUENCE_REPLAY, f'sequence {sequence} <= last {last}')
-                return reasons.SIGNER_SEQUENCE_REPLAY
+            # A replay (signer_seq at or below the last accepted) is a hard reject (§7.6).
+            if signer_seq <= last:
+                self._flag(_event_id(event), reasons.REPLAY_DETECTED, f'signer_seq {signer_seq} <= last {last}')
+                return reasons.REPLAY_DETECTED
                 # end if
-            if sequence > last + 1:
+            # A forward gap is flagged as an advisory anomaly, not rejected (the missing event is lost).
+            if signer_seq > last + 1:
                 self._flag(
                     _event_id(event),
-                    reasons.SIGNER_SEQUENCE_GAP,
-                    f'expected {last + 1}, got {sequence} (suppressed event)',
+                    reasons.SIGNER_SEQ_GAP,
+                    f'expected {last + 1}, got {signer_seq} (suppressed event)',
                 )
                 # end if
             # end if
@@ -202,11 +237,11 @@ class AuditHost:
         # end def
 
     def _advance_seq(self, event: dict[str, object]) -> None:
-        """Advance the per-key sequence tracker after a record is sealed (follows accepted, not seen)."""
+        """Advance the per-key signer_seq tracker after a record is sealed (follows accepted, not seen)."""
         key_id = event.get(fields.KEY_ID)
-        sequence = event.get(fields.SEQUENCE)
-        if isinstance(key_id, str) and isinstance(sequence, int):
-            self._last_seq_by_key[key_id] = sequence
+        signer_seq = event.get(fields.SIGNER_SEQ)
+        if isinstance(key_id, str) and isinstance(signer_seq, int):
+            self._last_seq_by_key[key_id] = signer_seq
             # end if
         # end def
 
@@ -218,13 +253,14 @@ class AuditHost:
             return reject(reasons.SCHEMA_INVALID)
             # end if
         if event.get(fields.OUTCOME) != Outcome.ATTEMPTED:
+            # Tier-2 (an attempt must carry outcome=attempted) rolls up to schema-invalid (§7.6).
             self._flag(_event_id(event), reasons.SCHEMA_INVALID, 'an attempt must carry outcome=attempted')
-            return reject(reasons.ATTEMPT_MUST_BE_ATTEMPTED)
+            return reject(reasons.SCHEMA_INVALID)
             # end if
-        # Not canonicalizable (§8.1): reject gracefully instead of raising at seal time.
+        # Not canonicalizable (§8.1): reject gracefully (rolls up to schema-invalid) instead of raising.
         if has_unsafe_number(event):
-            self._flag(_event_id(event), reasons.NUMERIC_DOMAIN, 'a numeric value is not canonicalizable (§8.1)')
-            return reject(reasons.NUMERIC_DOMAIN)
+            self._flag(_event_id(event), reasons.SCHEMA_INVALID, 'a numeric value is not canonicalizable (§8.1)')
+            return reject(reasons.SCHEMA_INVALID)
             # end if
         l2_reason = await self._check_l2(event)
         if l2_reason is not None:
@@ -233,18 +269,18 @@ class AuditHost:
             # end if
         if not self.persistence_available:
             # Fail closed: the tool must not act on an unpersisted record.
-            return unavailable(reasons.PERSISTENCE_FAILURE)
+            return unavailable()
             # end if
         event_id = _event_id(event)
         if event_id in self._accepted_attempts:
             self._rejected_ids.add(event_id)
-            self._flag(event_id, reasons.ATTEMPT_REPLAY, 'duplicate attempt id')
-            return reject(reasons.ATTEMPT_REPLAY)
+            self._flag(event_id, reasons.REPLAY_DETECTED, 'duplicate attempt id')
+            return reject(reasons.REPLAY_DETECTED)
             # end if
         sealed = await self._seal(event, self._clock.now())
         if sealed is None:
             # Persistence failed after validation: fail closed so the tool retries (not accepted).
-            return unavailable(reasons.PERSISTENCE_FAILURE)
+            return unavailable()
             # end if
         self._accepted_attempts.add(event_id)
         self._advance_seq(event)
@@ -260,11 +296,17 @@ class AuditHost:
             return
             # end if
         if has_unsafe_number(event):
-            self._flag(_event_id(event), reasons.NUMERIC_DOMAIN, 'a numeric value is not canonicalizable (§8.1)')
+            self._flag(_event_id(event), reasons.SCHEMA_INVALID, 'a numeric value is not canonicalizable (§8.1)')
             return
             # end if
         event_id = _event_id(event)
         outcome = event.get(fields.OUTCOME)
+        # §6: an `attempted` outcome on the audit/outcome channel is invalid; drop and flag it rather than
+        # sealing a second attempt record for the id (§7.1 uniqueness).
+        if outcome == Outcome.ATTEMPTED:
+            self._flag(event_id, reasons.SCHEMA_INVALID, 'attempted outcome on the audit/outcome channel (§6)')
+            return
+            # end if
         # §10.4: a fail-closed aborted outcome for a never-accepted attempt is the honest refused-action
         # signal, not a tampering anomaly. Exempt it before _check_l2 so a fresh signer sequence that
         # outran the unsealed attempt is not flagged as a suppression gap.
@@ -279,16 +321,23 @@ class AuditHost:
             # with no response channel, so a persistence failure is flagged, not returned.
             sealed = await self._seal(event, self._clock.now())
             if sealed is None:
-                self._flag(event_id, reasons.PERSISTENCE_FAILURE, 'could not persist outcome')
+                # A lost outcome is a completeness gap (§10.8), not a ledger integrity anomaly, and
+                # `internal-error` is not a Tier-1 anomaly kind (§7.6): log it locally instead of
+                # flagging the anomaly set with an out-of-space code.
+                _logger.error(
+                    'could not persist correlated outcome id=%s; outcome lost (completeness gap, §10.8)', event_id
+                )
                 return
                 # end if
             self._advance_seq(event)
             return
             # end if
+        # Both never-accepted and post-reject orphans roll up to the orphaned-outcome anomaly (§7.6); the
+        # finer distinction is a Tier-2 local detail.
         if event_id in self._rejected_ids:
-            self._flag(event_id, reasons.OUTCOME_AFTER_REJECT, f'outcome={outcome} for rejected id')
+            self._flag(event_id, reasons.ORPHANED_OUTCOME, f'outcome={outcome} for rejected id')
         else:
-            self._flag(event_id, reasons.OUTCOME_WITHOUT_ATTEMPT, f'outcome={outcome} without accepted attempt')
+            self._flag(event_id, reasons.ORPHANED_OUTCOME, f'outcome={outcome} without accepted attempt')
             # end if
         # end def
 

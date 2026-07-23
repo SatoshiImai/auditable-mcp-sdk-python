@@ -3,7 +3,7 @@
     "name": "db-read-minimal",
     "event": {
       "id": "00000000-0000-4000-8000-000000000001",
-      "spec_version": "auditable-mcp/0.1",
+      "spec_version": "auditable-mcp/0.1.1",
       "ts": "2026-07-15T00:00:01.000Z",
       "call_id": "call_abc",
       "action_type": "db.read",
@@ -15,14 +15,14 @@
       },
       "outcome": "attempted"
     },
-    "canonical": "{\"action_type\":\"db.read\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000001\",\"mutates\":false,\"outcome\":\"attempted\",\"spec_version\":\"auditable-mcp/0.1\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:01.000Z\"}",
-    "sha256": "3d5a772f96e73e66cb92e49928bd3173c5749ab2d1a9a45aaa069e23df4e3dd4"
+    "canonical": "{\"action_type\":\"db.read\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000001\",\"mutates\":false,\"outcome\":\"attempted\",\"spec_version\":\"auditable-mcp/0.1.1\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:01.000Z\"}",
+    "sha256": "cb0a02f46174ea40bb1cf42658ebb354808506479bc81f1def34fb0d7494c5fa"
   },
   {
     "name": "db-query-with-trace-and-context",
     "event": {
       "id": "00000000-0000-4000-8000-000000000002",
-      "spec_version": "auditable-mcp/0.1",
+      "spec_version": "auditable-mcp/0.1.1",
       "ts": "2026-07-15T00:00:02.000Z",
       "call_id": "call_abc",
       "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
@@ -43,14 +43,14 @@
       },
       "action_context_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
-    "canonical": "{\"action_context\":{\"dialect\":\"postgres\",\"tables_accessed\":[\"users\",\"payments\"]},\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"db.query\",\"call_id\":\"call_abc\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000002\",\"mutates\":false,\"outcome\":\"success\",\"spec_version\":\"auditable-mcp/0.1\",\"target_resource\":{\"kind\":\"database\",\"ref\":\"analytics-postgres\"},\"traceparent\":\"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\",\"ts\":\"2026-07-15T00:00:02.000Z\"}",
-    "sha256": "b44d7dd01b77d63372c34e743f26f9494e83bf2e17a1a8bd8169b1d1edb87cb7"
+    "canonical": "{\"action_context\":{\"dialect\":\"postgres\",\"tables_accessed\":[\"users\",\"payments\"]},\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"db.query\",\"call_id\":\"call_abc\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000002\",\"mutates\":false,\"outcome\":\"success\",\"spec_version\":\"auditable-mcp/0.1.1\",\"target_resource\":{\"kind\":\"database\",\"ref\":\"analytics-postgres\"},\"traceparent\":\"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\",\"ts\":\"2026-07-15T00:00:02.000Z\"}",
+    "sha256": "50af11ce61cfdfdb8beceae6ec29d9d1b8dd1fe91a836b59415854ac3f28826a"
   },
   {
     "name": "ext-l2-signed-unicode",
     "event": {
       "id": "00000000-0000-4000-8000-000000000003",
-      "spec_version": "auditable-mcp/0.1",
+      "spec_version": "auditable-mcp/0.1.1",
       "ts": "2026-07-15T00:00:03.000Z",
       "call_id": "call_xyz",
       "action_type": "ext.stripe.refund_charge",
@@ -63,18 +63,18 @@
       },
       "outcome": "attempted",
       "action_context_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "sequence": 42,
+      "signer_seq": 42,
       "key_id": "tool-key-2026",
       "signature": "ZmFrZS1zaWduYXR1cmU="
     },
-    "canonical": "{\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"ext.stripe.refund_charge\",\"call_id\":\"call_xyz\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000003\",\"key_id\":\"tool-key-2026\",\"mutates\":true,\"outcome\":\"attempted\",\"sequence\":42,\"signature\":\"ZmFrZS1zaWduYXR1cmU=\",\"spec_version\":\"auditable-mcp/0.1\",\"target_resource\":{\"kind\":\"endpoint\",\"ref\":\"https://api.stripe.com/v1/refunds\",\"scope_hint\":\"clïent:c_1\"},\"ts\":\"2026-07-15T00:00:03.000Z\"}",
-    "sha256": "ac94833864e24bca7d6d5e81d24ead1c3695201198a43c1af3901751eddbc255"
+    "canonical": "{\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"ext.stripe.refund_charge\",\"call_id\":\"call_xyz\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000003\",\"key_id\":\"tool-key-2026\",\"mutates\":true,\"outcome\":\"attempted\",\"signature\":\"ZmFrZS1zaWduYXR1cmU=\",\"signer_seq\":42,\"spec_version\":\"auditable-mcp/0.1.1\",\"target_resource\":{\"kind\":\"endpoint\",\"ref\":\"https://api.stripe.com/v1/refunds\",\"scope_hint\":\"clïent:c_1\"},\"ts\":\"2026-07-15T00:00:03.000Z\"}",
+    "sha256": "9e2d5e13185366d848dd1a3ce08aa02633b862a5f31942b6506d9ad818dfa3cd"
   },
   {
     "name": "secret-read",
     "event": {
       "id": "00000000-0000-4000-8000-000000000004",
-      "spec_version": "auditable-mcp/0.1",
+      "spec_version": "auditable-mcp/0.1.1",
       "ts": "2026-07-15T00:00:04.000Z",
       "call_id": "call_abc",
       "action_type": "secret.read",
@@ -87,7 +87,27 @@
       "outcome": "success",
       "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
     },
-    "canonical": "{\"action_context_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"action_type\":\"secret.read\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000004\",\"mutates\":false,\"outcome\":\"success\",\"spec_version\":\"auditable-mcp/0.1\",\"target_resource\":{\"kind\":\"secret\",\"ref\":\"db/password\"},\"ts\":\"2026-07-15T00:00:04.000Z\"}",
-    "sha256": "12bb751a388c99fa7eedc4241f57ff71569ad34d966bd77be0da49a12f96cb19"
+    "canonical": "{\"action_context_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"action_type\":\"secret.read\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000004\",\"mutates\":false,\"outcome\":\"success\",\"spec_version\":\"auditable-mcp/0.1.1\",\"target_resource\":{\"kind\":\"secret\",\"ref\":\"db/password\"},\"ts\":\"2026-07-15T00:00:04.000Z\"}",
+    "sha256": "3243f459eccc3b4f6e5843b8030eda94ed3a02f111ce249ebc5e8fea0120db25"
+  },
+  {
+    "name": "aborted-outcome-host-rejected",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "spec_version": "auditable-mcp/0.1.1",
+      "ts": "2026-07-15T00:00:05.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "aborted",
+      "reason": "host-rejected"
+    },
+    "canonical": "{\"action_type\":\"db.write\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000005\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-rejected\",\"spec_version\":\"auditable-mcp/0.1.1\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:05.000Z\"}",
+    "sha256": "09c7b795be4b2549ec1b2f3b8c7f0508ee9a83854d68d49c91dd45103b6077d0"
   }
 ]

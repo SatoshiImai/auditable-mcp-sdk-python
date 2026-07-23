@@ -1,7 +1,7 @@
 # Auditable MCP SDK (Python)
 
 A protocol machine for [Auditable MCP](https://github.com/SatoshiImai/mcp-audit-extension)
-(`auditable-mcp/0.1`). It lets an MCP tool self-attest its internal domain operations (SQL queries,
+(`auditable-mcp/0.1.1`). It lets an MCP tool self-attest its internal domain operations (SQL queries,
 downstream API calls) and lets a host seal those attestations into a tamper-evident, hash-chained
 ledger.
 
@@ -31,7 +31,7 @@ What it does not do (your concern, via adapters):
 
 ## Status
 
-Alpha, tracking `auditable-mcp/0.1`. The public API is unstable until v0.1 is tagged.
+Alpha, tracking `auditable-mcp/0.1.1`. The public API is unstable until v0.1 is tagged.
 
 ## Install
 
@@ -148,12 +148,11 @@ Local keys are for development and tests. See the next section for production.
 ```python
 from auditable_mcp import (
     AmcpSession,
-    AuditCapability,
     AuditHost,
-    Ed25519SignatureVerifier,
     Ed25519Signer,
     InProcessTransport,
     KeyRegistry,
+    KeyRegistryVerifier,
     Level,
     generate_tool_key,
 )
@@ -161,12 +160,13 @@ from auditable_mcp import (
 tool_key = generate_tool_key("tool-1")
 
 registry = KeyRegistry()          # the host's out-of-band trust anchor
-registry.register_tool_key(tool_key)
+registry.register_tool_key(tool_key)   # binds the key_id to Ed25519 (§5.1)
 
+# The host stamps its own spec_version; you supply only what you override.
 host = AuditHost(
     "tenant-a",
-    AuditCapability(level=Level.L2),
-    verifier=Ed25519SignatureVerifier(registry),
+    {"level": Level.L2},
+    verifier=KeyRegistryVerifier(registry),
 )
 session = AmcpSession(
     InProcessTransport(host),
@@ -185,7 +185,7 @@ only supplies the client.
 ```python
 import boto3
 
-from auditable_mcp import AmcpSession, AuditCapability, AuditHost, InProcessTransport, Level
+from auditable_mcp import AmcpSession, AuditHost, InProcessTransport, Level
 from auditable_mcp.l2.adapters.aws_kms import AwsKmsSigner, AwsKmsVerifier
 
 kms = boto3.client("kms")
@@ -194,7 +194,7 @@ key_arn = "arn:aws:kms:ap-northeast-1:123456789012:key/abcd-..."
 signer = AwsKmsSigner(kms, key_arn, event_key_id="tool-1")
 verifier = await AwsKmsVerifier.from_kms(kms, {"tool-1": key_arn})
 
-host = AuditHost("tenant-a", AuditCapability(level=Level.L2), verifier=verifier)
+host = AuditHost("tenant-a", {"level": Level.L2}, verifier=verifier)
 session = AmcpSession(InProcessTransport(host), "call-1", signer=signer)
 ```
 
@@ -270,6 +270,10 @@ make test          # includes the cross-language conformance vectors
 | `src/auditable_mcp/l2/`               | Ed25519 signing/verification, key registry, reconciliation      |
 | `src/auditable_mcp/l2/adapters/`      | external key backends (AWS KMS)                                 |
 | `spec/`                               | vendored normative schema + golden vectors (do not edit)        |
+
+## Note on AI Assistance
+
+The core architecture, design decisions, and core implementations in this project are entirely my own. I used AI tools (Claude, Gemini) strictly under my explicit direction for code generation, text formatting, edge-case verification, and polishing my English prose. All outputs were heavily reviewed, corrected, and finalized by me.
 
 ## License
 

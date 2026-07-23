@@ -19,7 +19,14 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from auditable_mcp.capability import NegotiationResult
-from auditable_mcp.models import AcceptResponse, AttemptResponse, AuditCapability, RejectResponse, UnavailableResponse
+from auditable_mcp.models import (
+    AcceptResponse,
+    AttemptResponse,
+    AuditCapability,
+    RejectReason,
+    RejectResponse,
+    UnavailableResponse,
+)
 
 
 def accept(seq: int, record_hash: str, host_ts: str, previous_hash: str) -> AcceptResponse:
@@ -28,15 +35,15 @@ def accept(seq: int, record_hash: str, host_ts: str, previous_hash: str) -> Acce
     # end def
 
 
-def reject(reason: str) -> RejectResponse:
-    """Build a reject response (ledger integrity could not be guaranteed, §7.1)."""
+def reject(reason: RejectReason) -> RejectResponse:
+    """Build a reject response with a Tier-1 reject `reason` (ledger integrity not guaranteed, §7.1)."""
     return RejectResponse(reason=reason)
     # end def
 
 
-def unavailable(reason: str) -> UnavailableResponse:
-    """Build a retryable unavailable response (transient persistence failure, §7.1)."""
-    return UnavailableResponse(reason=reason)
+def unavailable() -> UnavailableResponse:
+    """Build a retryable unavailable response (a host-internal failure, §7.1; `reason` is internal-error)."""
+    return UnavailableResponse()
     # end def
 
 

@@ -5,6 +5,7 @@ import pytest
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.models import (
+    SPEC_VERSION,
     AcceptResponse,
     AuditCapability,
     Level,
@@ -61,7 +62,7 @@ class _StubSigner:
     async def sign(self, event: dict[str, object]) -> dict[str, object]:
         """Add key_id, a monotonic sequence, and a placeholder signature."""
         self._seq += 1
-        return {**event, 'key_id': 'k1', 'sequence': self._seq, 'signature': 'stub'}
+        return {**event, 'key_id': 'k1', 'signer_seq': self._seq, 'signature': 'stub'}
         # end def
 
 
@@ -87,7 +88,7 @@ def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1.1',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
@@ -103,7 +104,7 @@ def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
 
 def _signed(event: dict[str, object], sequence: int) -> dict[str, object]:
     """Stamp an event with L2 fields at a given sequence."""
-    return {**event, 'key_id': 'k1', 'sequence': sequence, 'signature': 'stub'}
+    return {**event, 'key_id': 'k1', 'signer_seq': sequence, 'signature': 'stub'}
     # end def
 
 
@@ -140,7 +141,7 @@ async def test_attempt_must_carry_attempted_outcome() -> None:
     host = _l1_host()
     response = await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001', outcome='success'))
     assert isinstance(response, RejectResponse)
-    assert response.reason == 'attempt-must-be-attempted'
+    assert response.reason == 'schema-invalid'
     # end def
 
 
@@ -150,7 +151,7 @@ async def test_non_canonicalizable_number_is_rejected() -> None:
     event = _attempt('00000000-0000-4000-8000-000000000001', action_context={'n': 2**53})
     response = await host.handle_attempt(event)
     assert isinstance(response, RejectResponse)
-    assert response.reason == 'numeric-domain'
+    assert response.reason == 'schema-invalid'
     # end def
 
 
@@ -161,7 +162,7 @@ async def test_duplicate_attempt_id_is_rejected_as_replay() -> None:
     await host.handle_attempt(event)
     response = await host.handle_attempt(event)
     assert isinstance(response, RejectResponse)
-    assert response.reason == 'attempt-replay'
+    assert response.reason == 'replay-detected'
     assert len(host.records()) == 1
     # end def
 
@@ -189,11 +190,22 @@ async def test_correlated_outcome_is_sealed() -> None:
     # end def
 
 
+async def test_attempted_on_outcome_channel_is_dropped_not_sealed() -> None:
+    """§6: an `attempted` outcome on the audit/outcome channel is invalid — flagged schema-invalid, never sealed."""
+    host = _l1_host()
+    event_id = '00000000-0000-4000-8000-000000000001'
+    await host.handle_attempt(_attempt(event_id))
+    await host.handle_outcome(_attempt(event_id, outcome='attempted'))
+    assert [r.event['outcome'] for r in host.records()] == ['attempted']
+    assert any(a.kind == 'schema-invalid' for a in host.anomalies())
+    # end def
+
+
 async def test_success_outcome_without_attempt_is_flagged() -> None:
     """A success referencing no accepted attempt is an anomaly and is not sealed (§7.2)."""
     host = _l1_host()
     await host.handle_outcome(_attempt('00000000-0000-4000-8000-0000000000ff', outcome='success'))
-    assert any(a.kind == 'outcome-without-attempt' for a in host.anomalies())
+    assert any(a.kind == 'orphaned-outcome' for a in host.anomalies())
     assert len(host.records()) == 0
     # end def
 
@@ -212,14 +224,27 @@ async def test_aborted_outcome_without_attempt_is_not_an_anomaly() -> None:
 def test_l2_host_requires_a_verifier() -> None:
     """Constructing an L2 host without a verifier fails fast."""
     with pytest.raises(ValueError):
-        AuditHost('tenant-a', AuditCapability(level=Level.L2))
+        AuditHost('tenant-a', AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'))
         # end with
+    # end def
+
+
+def test_host_accepts_a_partial_capability_and_stamps_its_own_version() -> None:
+    """A partial input needs no spec_version; the local host stamps its own (§6.1)."""
+    host = AuditHost('tenant-a', {'level': Level.L1})
+    assert host.capability.spec_version == SPEC_VERSION
+    assert host.capability.level == Level.L1
     # end def
 
 
 def _l2_host(verifier: object) -> AuditHost:
     """Build an L2 host with the given verifier."""
-    return AuditHost('tenant-a', AuditCapability(level=Level.L2), verifier=verifier, clock=_Clock())  # type: ignore[arg-type]
+    return AuditHost(
+        'tenant-a',
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        verifier=verifier,
+        clock=_Clock(),
+    )  # type: ignore[arg-type]
 
 
 async def test_l2_unsigned_attempt_is_rejected() -> None:
@@ -246,7 +271,7 @@ async def test_l2_sequence_replay_is_rejected() -> None:
     await host.handle_attempt(_signed(_attempt('00000000-0000-4000-8000-000000000001'), 5))
     response = await host.handle_attempt(_signed(_attempt('00000000-0000-4000-8000-000000000002'), 5))
     assert isinstance(response, RejectResponse)
-    assert response.reason == 'signer-sequence-replay'
+    assert response.reason == 'replay-detected'
     # end def
 
 
@@ -256,7 +281,7 @@ async def test_l2_sequence_gap_is_flagged_but_accepted() -> None:
     await host.handle_attempt(_signed(_attempt('00000000-0000-4000-8000-000000000001'), 0))
     response = await host.handle_attempt(_signed(_attempt('00000000-0000-4000-8000-000000000002'), 2))
     assert isinstance(response, AcceptResponse)
-    assert any(a.kind == 'signer-sequence-gap' for a in host.anomalies())
+    assert any(a.kind == 'signer-seq-gap' for a in host.anomalies())
     # end def
 
 
@@ -266,7 +291,7 @@ async def test_outcome_after_reject_is_flagged() -> None:
     event_id = '00000000-0000-4000-8000-000000000001'
     await host.handle_attempt(_attempt(event_id))  # unsigned under L2 -> rejected, id remembered
     await host.handle_outcome(_signed(_attempt(event_id, outcome='success'), 0))
-    assert any(a.kind == 'outcome-after-reject' for a in host.anomalies())
+    assert any(a.kind == 'orphaned-outcome' for a in host.anomalies())
     # end def
 
 
@@ -292,8 +317,8 @@ async def test_l2_session_over_real_host_tracks_sequence() -> None:
         # end with
     records = host.records()
     assert [r.event['outcome'] for r in records] == ['attempted', 'success']
-    assert records[0].event['sequence'] == 1
-    assert records[1].event['sequence'] == 2
+    assert records[0].event['signer_seq'] == 1
+    assert records[1].event['signer_seq'] == 2
     assert host.anomalies() == []
     assert verify_ledger(records, host.digest()).ok
     # end def

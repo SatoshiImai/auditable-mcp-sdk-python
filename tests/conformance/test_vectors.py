@@ -1,7 +1,6 @@
 """Cross-language conformance: reproduce every golden vector byte-for-byte (spec §8.4, §11.1).
 
-These are the tests that prove the SDK speaks the same wire as the TypeScript SDK. If any of them
-fails, the SDK is non-conformant — not merely different.
+A vector mismatch means the SDK is non-conformant, not a different-but-valid encoding.
 """
 
 from typing import Any
@@ -56,10 +55,10 @@ def test_event_vectors_validate_against_the_shared_schema(
         # end for
 
 
-def test_chain_vector_record_hashes_and_links_reproduce(chain_vector: dict[str, Any]) -> None:
+def _reproduce_chain(chain: dict[str, Any]) -> None:
     """Recompute each record hash from the §8.2 preimage and verify the chain links to the digest."""
     previous_hash = GENESIS_HASH
-    for index, record in enumerate(chain_vector['records']):
+    for index, record in enumerate(chain['records']):
         assert record['seq'] == index
         assert record['previous_hash'] == previous_hash
         recomputed = compute_record_hash(
@@ -71,4 +70,17 @@ def test_chain_vector_record_hashes_and_links_reproduce(chain_vector: dict[str, 
         assert recomputed == record['record_hash'], f'record {index}'
         previous_hash = recomputed
         # end for
-    assert previous_hash == chain_vector['digest']
+    assert previous_hash == chain['digest']
+    # end def
+
+
+def test_chain_vector_record_hashes_and_links_reproduce(chain_vector: dict[str, Any]) -> None:
+    """The Level-1 golden chain reproduces byte-for-byte."""
+    _reproduce_chain(chain_vector)
+    # end def
+
+
+def test_signed_chain_vector_reproduces_with_signature_in_the_preimage(chain_signed_vector: dict[str, Any]) -> None:
+    """The Level-2 signed chain reproduces: the record_hash preimage includes the signature (§8.2)."""
+    _reproduce_chain(chain_signed_vector)
+    # end def

@@ -9,7 +9,7 @@ from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2.adapters.aws_kms import AwsKmsSigner, AwsKmsVerifier
 from auditable_mcp.l2.keys import KeyRegistry
-from auditable_mcp.models import AuditCapability, Level
+from auditable_mcp.models import SPEC_VERSION, AuditCapability, Level
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.verify import verify_ledger
 
@@ -76,7 +76,7 @@ def _event() -> dict[str, object]:
     """Build a wire attempt event."""
     return {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'auditable-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1.1',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
@@ -94,7 +94,7 @@ async def test_kms_sign_then_verify_roundtrips() -> None:
     signer = AwsKmsSigner(client, 'arn:aws:kms:key-1', event_key_id='tool-1')
     signed = await signer.sign(_event())
     assert signed['key_id'] == 'tool-1'
-    assert signed['sequence'] == 0
+    assert signed['signer_seq'] == 0
     verifier = await AwsKmsVerifier.from_kms(client, {'tool-1': 'arn:aws:kms:key-1'})
     assert await verifier.verify(signed) is None
     # end def
@@ -123,7 +123,7 @@ async def test_kms_tampered_body_is_signature_invalid() -> None:
 async def test_kms_signer_emits_a_monotonic_sequence() -> None:
     """The KMS signer stamps 0, 1, 2, … like the local signer."""
     signer = AwsKmsSigner(_FakeKms(), 'arn:aws:kms:key-1', event_key_id='tool-1')
-    assert [(await signer.sign(_event()))['sequence'] for _ in range(3)] == [0, 1, 2]
+    assert [(await signer.sign(_event()))['signer_seq'] for _ in range(3)] == [0, 1, 2]
     # end def
 
 
@@ -132,14 +132,19 @@ async def test_end_to_end_kms_without_stubs() -> None:
     client = _FakeKms()
     signer = AwsKmsSigner(client, 'arn:aws:kms:tool', event_key_id='tool-1')
     verifier = await AwsKmsVerifier.from_kms(client, {'tool-1': 'arn:aws:kms:tool'})
-    host = AuditHost('tenant-a', AuditCapability(level=Level.L2), verifier=verifier, clock=_Clock())
+    host = AuditHost(
+        'tenant-a',
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        verifier=verifier,
+        clock=_Clock(),
+    )
     session = AmcpSession(InProcessTransport(host), 'call_1', deps=_FixedDeps(), signer=signer)
     async with session.action('db.query', {'kind': 'database', 'ref': 'pg'}, mutates=False, egress=True):
         pass
         # end with
     records = host.records()
     assert [r.event['outcome'] for r in records] == ['attempted', 'success']
-    assert [r.event['sequence'] for r in records] == [0, 1]
+    assert [r.event['signer_seq'] for r in records] == [0, 1]
     assert [r.event['key_id'] for r in records] == ['tool-1', 'tool-1']
     assert host.anomalies() == []
     assert verify_ledger(records, host.digest()).ok
