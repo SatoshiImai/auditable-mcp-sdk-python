@@ -19,7 +19,7 @@ OUTCOME = 'outcome'
 REASON = 'reason'
 ACTION_CONTEXT = 'action_context'
 ACTION_CONTEXT_HASH = 'action_context_hash'
-SEQUENCE = 'sequence'
+SIGNER_SEQ = 'signer_seq'
 KEY_ID = 'key_id'
 SIGNATURE = 'signature'
 

@@ -41,8 +41,30 @@ def chain_vector() -> dict[str, Any]:
 
 
 @pytest.fixture
+def chain_signed_vector() -> dict[str, Any]:
+    """The golden signed sealed-chain vector (record_hash includes the signature, §8.2)."""
+    return _load(_VECTORS_DIR / 'chain-signed.json')
+    # end def
+
+
+@pytest.fixture
+def error_cases() -> list[dict[str, Any]]:
+    """Golden events a host MUST reject (attempt) or drop and flag (outcome), with the Tier-1 code."""
+    return _load(_VECTORS_DIR / 'error-cases.json')
+    # end def
+
+
+@pytest.fixture
 def event_schema_validator() -> Draft202012Validator:
     """A validator for the normative audit-event JSON Schema."""
     schema = _load(_SCHEMA_DIR / 'audit-event.schema.json')
+    return Draft202012Validator(schema)
+    # end def
+
+
+@pytest.fixture
+def capability_schema_validator() -> Draft202012Validator:
+    """A validator for the normative audit-capability JSON Schema."""
+    schema = _load(_SCHEMA_DIR / 'audit-capability.schema.json')
     return Draft202012Validator(schema)
     # end def

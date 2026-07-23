@@ -16,7 +16,7 @@ import rfc8785
 # safe-integer range or canonicalization diverges across runtimes.
 MAX_SAFE_INTEGER = 2**53 - 1
 
-# The action_context_hash commitment (§4.3) names its algorithm; only SHA-256 is defined in v0.1.
+# The action_context_hash commitment (§4.3) names its algorithm; only SHA-256 is defined in this version.
 CONTEXT_HASH_PREFIX = 'sha256:'
 
 

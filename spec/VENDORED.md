@@ -18,6 +18,6 @@ Point at a spec checkout elsewhere with `--source <path>` or `AMCP_SPEC_SRC=<pat
 
 ## Why vendored, not edited
 
-`spec_version` is `auditable-mcp/0.1`. A conforming implementation MUST reproduce every golden
+`spec_version` is `auditable-mcp/0.1.1`. A conforming implementation MUST reproduce every golden
 vector byte-for-byte (spec §8.4, §11.1). Editing these files here would fork the contract; fix the
 spec upstream and re-sync instead.

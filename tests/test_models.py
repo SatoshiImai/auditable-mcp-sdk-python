@@ -20,6 +20,7 @@ def _minimal_event() -> AuditEvent:
     """Build a minimal valid attempt event."""
     return AuditEvent(
         id='00000000-0000-4000-8000-000000000001',
+        spec_version='auditable-mcp/0.1.1',
         ts='2026-07-15T00:00:01.000Z',
         call_id='call_abc',
         action_type='db.read',
@@ -37,7 +38,7 @@ def test_to_wire_omits_absent_optionals() -> None:
     assert 'reason' not in wire
     assert 'signature' not in wire
     assert 'scope_hint' not in wire['target_resource']
-    assert wire['spec_version'] == 'auditable-mcp/0.1'
+    assert wire['spec_version'] == 'auditable-mcp/0.1.1'
     # end def
 
 
@@ -46,6 +47,7 @@ def test_boolean_effects_are_not_coerced() -> None:
     with pytest.raises(ValidationError):
         AuditEvent(
             id='00000000-0000-4000-8000-000000000001',
+            spec_version='auditable-mcp/0.1.1',
             ts='2026-07-15T00:00:01.000Z',
             call_id='call_abc',
             action_type='db.read',
@@ -64,7 +66,7 @@ def test_unknown_fields_are_forbidden() -> None:
         AuditEvent.model_validate(
             {
                 'id': '00000000-0000-4000-8000-000000000001',
-                'spec_version': 'auditable-mcp/0.1',
+                'spec_version': 'auditable-mcp/0.1.1',
                 'ts': '2026-07-15T00:00:01.000Z',
                 'call_id': 'call_abc',
                 'action_type': 'db.read',
@@ -99,6 +101,25 @@ def test_wrong_spec_version_is_rejected() -> None:
     # end def
 
 
+def test_missing_spec_version_is_rejected() -> None:
+    """spec_version is REQUIRED on an event and is never defaulted in; an omission is an error (§4)."""
+    with pytest.raises(ValidationError):
+        AuditEvent.model_validate(
+            {
+                'id': '00000000-0000-4000-8000-000000000001',
+                'ts': '2026-07-15T00:00:01.000Z',
+                'call_id': 'call_abc',
+                'action_type': 'db.read',
+                'mutates': False,
+                'egress': False,
+                'target_resource': {'kind': 'table', 'ref': 'customers'},
+                'outcome': 'attempted',
+            }
+        )
+        # end with
+    # end def
+
+
 def test_attempt_response_union_discriminates_on_status() -> None:
     """The tagged union parses each variant by its status discriminator."""
     accept = _ADAPTER.validate_python(
@@ -113,9 +134,7 @@ def test_attempt_response_union_discriminates_on_status() -> None:
     assert isinstance(accept, AcceptResponse)
     reject = _ADAPTER.validate_python({'status': 'reject', 'reason': 'schema-invalid'})
     assert isinstance(reject, RejectResponse)
-    unavailable = _ADAPTER.validate_python(
-        {'status': 'unavailable', 'reason': 'persistence-failure', 'retryable': True}
-    )
+    unavailable = _ADAPTER.validate_python({'status': 'unavailable', 'reason': 'internal-error', 'retryable': True})
     assert isinstance(unavailable, UnavailableResponse)
     # end def
 

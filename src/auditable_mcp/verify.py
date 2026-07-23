@@ -4,7 +4,8 @@ The chain is recomputed from the record bodies rather than read from the stored 
 mutation of an event propagates to the tail digest and is localized. An out-of-band anchored digest
 (§8.3) catches a fully re-linked rewrite or truncation that an internally-consistent chain cannot.
 This is a read-only auditor over records that may come straight from a `Ledger` or be reloaded from
-untrusted storage, so each event is re-validated structurally before it is trusted.
+untrusted storage. `verify_chain` checks chain integrity alone (§8.3); `verify_ledger` adds A-MCP
+event-schema validation on top (§7.1).
 """
 
 from dataclasses import dataclass
@@ -14,12 +15,12 @@ from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash
 from auditable_mcp.ledger import SealedRecord
 from auditable_mcp.models import Outcome, first_validation_error
 
-# Verify issue kinds specific to full-chain audit; the host ingest path uses its own vocabulary.
-SEQ_GAP = 'seq-gap'
-SEQ_OUT_OF_ORDER = 'seq-out-of-order'
-PREV_HASH_MISMATCH = 'prev-hash-mismatch'
-RECORD_HASH_MISMATCH = 'record-hash-mismatch'
-DIGEST_MISMATCH = 'digest-mismatch'
+# A verifier reports only the §7.6 Tier-1 anomaly kinds. Aliased here for convenience; finer causes
+# (out-of-order, a broken previous_hash link) go in the issue `detail` as a Tier-2 diagnostic.
+SEQ_GAP = reasons.SEQ_GAP
+RECORD_HASH_MISMATCH = reasons.RECORD_HASH_MISMATCH
+DIGEST_MISMATCH = reasons.DIGEST_MISMATCH
+ORPHANED_OUTCOME = reasons.ORPHANED_OUTCOME
 
 
 @dataclass(frozen=True)
@@ -43,12 +44,12 @@ class VerifyReport:
     # end class
 
 
-def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = None) -> VerifyReport:
-    """Verify a sealed ledger for non-tampering and completeness.
+def verify_chain(records: list[SealedRecord], anchored_digest: str | None = None) -> VerifyReport:
+    """Verify chain integrity alone, independent of the event vocabulary (§8.3).
 
-    Detects: malformed events, sequence gaps / out-of-order, broken previous-hash links, mutated
-    record hashes, outcomes with no correlating attempt, and (with `anchored_digest`) a re-linked
-    rewrite or truncation.
+    Checks sequence order, previous-hash linkage, record-hash recomputation, attempt/outcome
+    correlation, and (with `anchored_digest`) the anchored-digest compare. This is the tamper-evidence
+    guarantee for any events sealed through `Ledger`; it never inspects the event schema.
 
     Args:
         records: The sealed records in append order (from a `Ledger` or reloaded storage).
@@ -64,23 +65,19 @@ def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = Non
     for index, record in enumerate(records):
         event = record.event
 
-        structural = first_validation_error(event)
-        if structural is not None:
-            issues.append(VerifyIssue(seq=record.seq, kind=reasons.SCHEMA_INVALID, detail=structural))
-            # end if
-
         if record.seq != index:
-            kind = SEQ_GAP if record.seq > index else SEQ_OUT_OF_ORDER
-            issues.append(VerifyIssue(seq=record.seq, kind=kind, detail=f'expected seq {index}, got {record.seq}'))
+            # Out-of-order rolls up to seq-gap (Tier-1); the direction is a Tier-2 detail.
+            issues.append(VerifyIssue(seq=record.seq, kind=SEQ_GAP, detail=f'expected seq {index}, got {record.seq}'))
             # end if
 
         # Recompute from the record body against the recomputed prior link, not the stored one, so a
-        # mutation cannot hide behind its own stored hashes.
+        # mutation cannot hide behind its own stored hashes. A broken previous_hash link surfaces as a
+        # record-hash-mismatch (Tier-1); the "link" detail distinguishes it locally.
         recomputed = compute_record_hash(event, record.seq, record.host_ts, prev_recomputed)
         if record.previous_hash != prev_recomputed:
             issues.append(
                 VerifyIssue(
-                    seq=record.seq, kind=PREV_HASH_MISMATCH, detail='previous_hash does not link to prior record'
+                    seq=record.seq, kind=RECORD_HASH_MISMATCH, detail='previous_hash does not link to prior record'
                 )
             )
             # end if
@@ -95,11 +92,7 @@ def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = Non
         if outcome == Outcome.ATTEMPTED:
             attempted_ids.add(event_id)
         elif event_id not in attempted_ids:
-            issues.append(
-                VerifyIssue(
-                    seq=record.seq, kind=reasons.OUTCOME_WITHOUT_ATTEMPT, detail=f'outcome={outcome} id={event_id}'
-                )
-            )
+            issues.append(VerifyIssue(seq=record.seq, kind=ORPHANED_OUTCOME, detail=f'outcome={outcome} id={event_id}'))
             # end if
 
         prev_recomputed = recomputed
@@ -115,4 +108,35 @@ def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = Non
         # end if
 
     return VerifyReport(ok=len(issues) == 0, count=len(records), computed_digest=computed_digest, issues=issues)
+    # end def
+
+
+def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = None) -> VerifyReport:
+    """Verify chain integrity and A-MCP event-schema conformance (§8.3 + §7.1).
+
+    `verify_chain` followed by a per-record schema check: a record that is not a strict A-MCP event is
+    flagged `schema-invalid`. For A-MCP events the result is identical to `verify_chain`.
+
+    Args:
+        records: The sealed records in append order (from a `Ledger` or reloaded storage).
+        anchored_digest: An out-of-band anchored tail digest to compare against, if available (§8.3).
+
+    Returns:
+        A report; `ok` is True only when no issues were found.
+    """
+    report = verify_chain(records, anchored_digest)
+    schema_issues = [
+        VerifyIssue(seq=record.seq, kind=reasons.SCHEMA_INVALID, detail=error)
+        for record in records
+        if (error := first_validation_error(record.event)) is not None
+    ]
+    if not schema_issues:
+        return report
+        # end if
+    return VerifyReport(
+        ok=False,
+        count=report.count,
+        computed_digest=report.computed_digest,
+        issues=[*report.issues, *schema_issues],
+    )
     # end def

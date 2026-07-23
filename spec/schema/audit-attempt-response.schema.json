@@ -44,7 +44,14 @@
           "const": "reject"
         },
         "reason": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "schema-invalid",
+            "replay-detected",
+            "signature-invalid",
+            "l2-unsigned",
+            "unknown-key"
+          ]
         }
       },
       "required": [
@@ -61,7 +68,8 @@
           "const": "unavailable"
         },
         "reason": {
-          "type": "string"
+          "type": "string",
+          "const": "internal-error"
         },
         "retryable": {
           "type": "boolean",

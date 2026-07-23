@@ -1,11 +1,12 @@
 """Level-2 verification (host side).
 
 Two detached-signature primitives over canonical(event − signature) (§8.2): `verify_ed25519_signature`
-and `verify_ecdsa_signature` (AWS KMS does not offer Ed25519, so ECDSA covers the KMS/HSM case).
-`Ed25519SignatureVerifier` and `EcdsaSignatureVerifier` are the symmetric host `SignatureVerifier`
-implementations: each resolves the `key_id` in a `KeyRegistry` and returns a reject reason
-(`unknown-key` / `signature-invalid`) or None. Verification is local — the public key is public,
-onboarded once — so no per-event KMS call is needed.
+and `verify_ecdsa_signature` (AWS KMS does not offer Ed25519, so ECDSA P-256/SHA-256 covers the
+KMS/HSM case). `KeyRegistryVerifier` is the host `SignatureVerifier`: it resolves the `key_id` in a
+`KeyRegistry`, dispatches to the algorithm bound to that key (§5.1), and returns a Tier-1 reject
+reason (`unknown-key` / `signature-invalid`) or None. Verification is local — the public key is
+public, onboarded once — so no per-event KMS call is needed. One verifier handles a heterogeneous
+fleet.
 """
 
 import base64
@@ -16,10 +17,15 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
 from auditable_mcp import fields, reasons
-from auditable_mcp.l2.keys import KeyRegistry
+from auditable_mcp.l2.keys import KeyRegistry, SignatureAlgorithm
 from auditable_mcp.l2.signing import signature_payload
+from auditable_mcp.models import RejectReason
+
+# An ECDSA P-256 wire signature is the fixed 64-byte IEEE P1363 r||s form (§5.1).
+_P256_RAW_SIGNATURE_LEN = 64
 
 
 def _decode_signature(event: dict[str, object]) -> bytes | None:
@@ -56,17 +62,21 @@ def verify_ecdsa_signature(
     public_key: EllipticCurvePublicKey,
     hash_algorithm: hashes.HashAlgorithm | None = None,
 ) -> bool:
-    """Return True if the event's base64 DER-ECDSA signature verifies against `public_key`.
+    """Return True if the event's base64 signature verifies as ECDSA P-256/SHA-256 against `public_key`.
 
-    The default hash is SHA-256 (matching `ECDSA_SHA_256`).
+    The wire signature is the fixed-length IEEE P1363 ``r || s`` form (§5.1), not DER; it is converted
+    to DER for the backend. A wrong-length or undecodable value verifies False (mapped to
+    `signature-invalid` by the caller). The default hash is SHA-256 (matching `ECDSA_SHA_256`).
     """
     signature = _decode_signature(event)
-    if signature is None:
+    if signature is None or len(signature) != _P256_RAW_SIGNATURE_LEN:
         return False
         # end if
+    half = _P256_RAW_SIGNATURE_LEN // 2
+    der = encode_dss_signature(int.from_bytes(signature[:half], 'big'), int.from_bytes(signature[half:], 'big'))
     algorithm = hash_algorithm if hash_algorithm is not None else hashes.SHA256()
     try:
-        public_key.verify(signature, signature_payload(event), ec.ECDSA(algorithm))
+        public_key.verify(der, signature_payload(event), ec.ECDSA(algorithm))
     except InvalidSignature:
         return False
         # end try
@@ -74,56 +84,35 @@ def verify_ecdsa_signature(
     # end def
 
 
-class Ed25519SignatureVerifier:
-    """A host `SignatureVerifier` backed by an Ed25519 public-key registry."""
+class KeyRegistryVerifier:
+    """A host `SignatureVerifier` backed by an algorithm-bound `KeyRegistry`.
 
-    def __init__(self, registry: KeyRegistry[Ed25519PublicKey]) -> None:
-        """Bind the verifier to the registry of onboarded Ed25519 public keys."""
-        self._registry = registry
-        # end def
-
-    async def verify(self, event: dict[str, object]) -> str | None:
-        """Return `unknown-key` / `signature-invalid`, or None if the Ed25519 signature verifies (local)."""
-        key_id = event.get(fields.KEY_ID)
-        public_key = self._registry.get(key_id) if isinstance(key_id, str) else None
-        if public_key is None:
-            return reasons.UNKNOWN_KEY
-            # end if
-        if not verify_ed25519_signature(event, public_key):
-            return reasons.SIGNATURE_INVALID
-            # end if
-        return None
-        # end def
-
-    # end class
-
-
-class EcdsaSignatureVerifier:
-    """A host `SignatureVerifier` backed by an elliptic-curve public-key registry (ECDSA).
-
-    The symmetric counterpart to `Ed25519SignatureVerifier` for keys held in a KMS/HSM or elsewhere;
-    populate its registry with EC public keys (e.g. loaded from KMS, see `l2.adapters.aws_kms`).
+    Per event it resolves `key_id` to its registry entry and dispatches to the bound algorithm's
+    primitive, so Ed25519 and ECDSA P-256 tools verify through one instance (§5.1). Verification is
+    local; the ECDSA hash defaults to SHA-256.
     """
 
-    def __init__(
-        self,
-        registry: KeyRegistry[EllipticCurvePublicKey],
-        *,
-        hash_algorithm: hashes.HashAlgorithm | None = None,
-    ) -> None:
-        """Bind the verifier to the registry of onboarded EC public keys and the ECDSA hash."""
+    def __init__(self, registry: KeyRegistry, *, hash_algorithm: hashes.HashAlgorithm | None = None) -> None:
+        """Bind the verifier to the registry of onboarded public keys and the ECDSA hash."""
         self._registry = registry
         self._hash_algorithm = hash_algorithm
         # end def
 
-    async def verify(self, event: dict[str, object]) -> str | None:
-        """Return `unknown-key` / `signature-invalid`, or None if the ECDSA signature verifies (local)."""
+    async def verify(self, event: dict[str, object]) -> RejectReason | None:
+        """Return `unknown-key` / `signature-invalid`, or None if the signature verifies (local)."""
         key_id = event.get(fields.KEY_ID)
-        public_key = self._registry.get(key_id) if isinstance(key_id, str) else None
-        if public_key is None:
+        entry = self._registry.get(key_id) if isinstance(key_id, str) else None
+        if entry is None:
             return reasons.UNKNOWN_KEY
             # end if
-        if not verify_ecdsa_signature(event, public_key, self._hash_algorithm):
+        if entry.algorithm == SignatureAlgorithm.ED25519:
+            assert isinstance(entry.public_key, Ed25519PublicKey)
+            verified = verify_ed25519_signature(event, entry.public_key)
+        else:
+            assert isinstance(entry.public_key, EllipticCurvePublicKey)
+            verified = verify_ecdsa_signature(event, entry.public_key, self._hash_algorithm)
+            # end if
+        if not verified:
             return reasons.SIGNATURE_INVALID
             # end if
         return None

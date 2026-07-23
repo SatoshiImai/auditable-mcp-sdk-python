@@ -1,8 +1,12 @@
 """Unit tests for capability negotiation and the in-process transport."""
 
+import pytest
+from pydantic import ValidationError
+
 from auditable_mcp.capability import negotiate
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.models import (
+    SPEC_VERSION,
     AcceptResponse,
     AttemptResponse,
     AuditCapability,
@@ -17,7 +21,7 @@ class _RecordingEndpoint:
 
     def __init__(self, level: Level = Level.L1, response: AttemptResponse | None = None) -> None:
         """Configure the required level and the canned attempt response."""
-        self._capability = AuditCapability(level=level)
+        self._capability = AuditCapability(spec_version=SPEC_VERSION, level=level, attempt='request')
         self._response = response or accept(0, 'a' * 64, '2026-07-15T00:00:01.000Z', '0' * 64)
         self.attempts: list[dict[str, object]] = []
         self.outcomes: list[dict[str, object]] = []
@@ -43,21 +47,30 @@ class _RecordingEndpoint:
 
 def test_l2_tool_satisfies_an_l1_host() -> None:
     """An L2 offer is a safe downgrade for an L1 requirement."""
-    result = negotiate(AuditCapability(level=Level.L1), AuditCapability(level=Level.L2))
+    result = negotiate(
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+    )
     assert result.satisfied
     # end def
 
 
 def test_l1_tool_does_not_satisfy_an_l2_host() -> None:
     """An L1-only tool cannot meet an L2 requirement."""
-    result = negotiate(AuditCapability(level=Level.L2), AuditCapability(level=Level.L1))
+    result = negotiate(
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request'),
+    )
     assert not result.satisfied
     # end def
 
 
 def test_equal_levels_are_satisfied() -> None:
     """Matching levels negotiate successfully."""
-    assert negotiate(AuditCapability(level=Level.L2), AuditCapability(level=Level.L2)).satisfied
+    assert negotiate(
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+    ).satisfied
     # end def
 
 
@@ -67,7 +80,7 @@ def test_response_builders_produce_the_correct_variants() -> None:
     assert isinstance(acc, AcceptResponse)
     assert acc.seq == 3
     assert reject('schema-invalid').reason == 'schema-invalid'
-    un = unavailable('persistence-failure')
+    un = unavailable()
     assert isinstance(un, UnavailableResponse)
     assert un.retryable is True
     # end def
@@ -76,7 +89,26 @@ def test_response_builders_produce_the_correct_variants() -> None:
 def test_in_process_transport_negotiates_against_the_endpoint() -> None:
     """The transport uses the endpoint's required capability for negotiation."""
     transport = InProcessTransport(_RecordingEndpoint(level=Level.L2))
-    assert not transport.negotiate(AuditCapability(level=Level.L1)).satisfied
+    assert not transport.negotiate(
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request')
+    ).satisfied
+    # end def
+
+
+def test_capability_missing_spec_version_is_rejected() -> None:
+    """spec_version is REQUIRED on the wire; an omitted version is an error, not defaulted (§6.1)."""
+    with pytest.raises(ValidationError):
+        AuditCapability.model_validate({'level': 'L2', 'attempt': 'request'})
+        # end with
+    # end def
+
+
+def test_version_mismatch_is_not_satisfied() -> None:
+    """A spec_version mismatch withholds satisfaction even at a compatible level (§6.1)."""
+    offered = AuditCapability(spec_version='auditable-mcp/0.1', level=Level.L1, attempt='request')
+    result = negotiate(AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request'), offered)
+    assert result.version_match is False
+    assert result.satisfied is False
     # end def
 
 

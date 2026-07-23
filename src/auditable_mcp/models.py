@@ -11,14 +11,19 @@ a local hash input, never a wire object (see `hashing.py`).
 """
 
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, model_validator
 
 from auditable_mcp.canonical import MAX_SAFE_INTEGER
 
 # The only spec version defined by this contract; a mismatch is a hard validation error.
-SPEC_VERSION: Literal['auditable-mcp/0.1'] = 'auditable-mcp/0.1'
+SPEC_VERSION: Literal['auditable-mcp/0.1.1'] = 'auditable-mcp/0.1.1'
+
+# §7.6 Tier-1 code spaces pinned onto the wire contracts. The tool abort reason (on an aborted
+# outcome), the host reject reason, and the unavailable reason are three distinct spaces.
+AbortReason = Literal['hash-mismatch', 'host-rejected', 'host-unavailable']
+RejectReason = Literal['schema-invalid', 'replay-detected', 'signature-invalid', 'l2-unsigned', 'unknown-key']
 
 # Patterns copied verbatim from the normative JSON Schema (spec/schema/), applied to `str` fields so
 # validation matches the contract exactly without transforming the value — the bytes must survive
@@ -36,6 +41,8 @@ DATETIME_PATTERN = (
 )
 CHAIN_HASH_PATTERN = r'^[0-9a-f]{64}$'
 CONTEXT_HASH_PATTERN = r'^sha256:[0-9a-f]{64}$'
+# Standard base64 with optional padding (§5.1: base64url is forbidden on the wire).
+SIGNATURE_PATTERN = r'^[A-Za-z0-9+/]+={0,2}$'
 
 
 class Outcome(StrEnum):
@@ -95,13 +102,14 @@ class TargetResource(WireModel):
 class AuditEvent(WireModel):
     """One audit record describing one internal operation (§4).
 
-    The Level-2 fields (`sequence`, `key_id`, `signature`) are optional so a single model serves
-    both levels; the signing layer populates them. Structural conformance to the full pattern
-    constraints (uuid/date-time regexes) is enforced by the shared JSON Schema at the host boundary.
+    The Level-2 fields (`signer_seq`, `key_id`, `signature`) are optional so a single model serves
+    both levels; the signing layer populates them. `reason` is pinned to the Tier-1 abort codes and
+    is required exactly when `outcome` is `aborted` (§7.6, §7.2).
     """
 
     id: str = Field(pattern=UUID_PATTERN)
-    spec_version: Literal['auditable-mcp/0.1'] = SPEC_VERSION
+    # REQUIRED and hashed into the canonical bytes (§4): a defaulted-in version would fork the chain.
+    spec_version: Literal['auditable-mcp/0.1.1']
     ts: str = Field(pattern=DATETIME_PATTERN)
     call_id: str = Field(min_length=1)
     traceparent: str | None = None
@@ -111,20 +119,43 @@ class AuditEvent(WireModel):
     target_resource: TargetResource
     # strict=False so an incoming wire string ('attempted') coerces to the enum; effect flags stay strict.
     outcome: Annotated[Outcome, Field(strict=False)]
-    reason: str | None = None
+    reason: AbortReason | None = None
     action_context: dict[str, object] | None = None
     action_context_hash: str | None = Field(default=None, pattern=CONTEXT_HASH_PATTERN)
-    sequence: int | None = Field(default=None, ge=0, le=MAX_SAFE_INTEGER)
-    key_id: str | None = None
-    signature: str | None = None
+    signer_seq: int | None = Field(default=None, ge=0, le=MAX_SAFE_INTEGER)
+    key_id: str | None = Field(default=None, min_length=1)
+    signature: str | None = Field(default=None, pattern=SIGNATURE_PATTERN)
+
+    @model_validator(mode='after')
+    def _require_reason_when_aborted(self) -> 'AuditEvent':
+        """An aborted outcome MUST carry a Tier-1 abort reason (§7.2)."""
+        if self.outcome == Outcome.ABORTED and self.reason is None:
+            raise ValueError('an aborted outcome requires a reason')
+            # end if
+        return self
+        # end def
+
     # end class
 
 
 class AuditCapability(WireModel):
-    """An audit capability: a requirement when host-declared, a supported level when tool-declared (§6.1)."""
+    """An audit capability exchanged during negotiation: the version, level, and attempt mode (§6.1)."""
 
-    level: Annotated[Level, Field(strict=False)] = Level.L1
-    attempt: Literal['request'] = 'request'
+    # All three REQUIRED (§6.1, normative audit-capability.schema.json): a peer that omits any field is
+    # rejected, not silently coerced, so version negotiation cannot be bypassed by omission. The host's
+    # own partial self-declaration is completed with explicit SDK defaults before validation (host.py).
+    spec_version: str = Field(min_length=1)
+    level: Annotated[Level, Field(strict=False)]
+    attempt: Literal['request']
+    # end class
+
+
+class AuditCapabilityInput(TypedDict, total=False):
+    """A partial host self-declaration: unset fields are filled from the SDK's own capability defaults."""
+
+    spec_version: str
+    level: Level
+    attempt: Literal['request']
     # end class
 
 
@@ -140,18 +171,18 @@ class AcceptResponse(WireModel):
 
 
 class RejectResponse(WireModel):
-    """A refused attempt: ledger integrity could not be guaranteed (§7.1)."""
+    """A refused attempt: ledger integrity could not be guaranteed (§7.1). `reason` is a Tier-1 code."""
 
     status: Literal[Status.REJECT] = Status.REJECT
-    reason: str
+    reason: RejectReason
     # end class
 
 
 class UnavailableResponse(WireModel):
-    """A transient persistence failure: fail closed and retry (§7.1). `retryable` is always true."""
+    """A transient host-internal failure: fail closed and retry (§7.1). `retryable` is always true."""
 
     status: Literal[Status.UNAVAILABLE] = Status.UNAVAILABLE
-    reason: str
+    reason: Literal['internal-error'] = 'internal-error'
     retryable: Literal[True] = True
     # end class
 
