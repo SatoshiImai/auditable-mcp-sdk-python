@@ -8,12 +8,13 @@ untrusted storage. `verify_chain` checks chain integrity alone (§8.3); `verify_
 event-schema validation on top (§7.1).
 """
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from auditable_mcp import fields, reasons
 from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash
 from auditable_mcp.ledger import SealedRecord
-from auditable_mcp.models import Outcome, first_validation_error
+from auditable_mcp.models import Outcome, first_sealed_validation_error
 
 # A verifier reports only the §7.6 Tier-1 anomaly kinds. Aliased here for convenience; finer causes
 # (out-of-order, a broken previous_hash link) go in the issue `detail` as a Tier-2 diagnostic.
@@ -44,7 +45,51 @@ class VerifyReport:
     # end class
 
 
-def verify_chain(records: list[SealedRecord], anchored_digest: str | None = None) -> VerifyReport:
+def _top_level_id(event: Mapping[str, object]) -> object:
+    """Default correlation-key accessor: the top-level `id` of a bare a-MCP event."""
+    return event.get(fields.ID)
+    # end def
+
+
+def _top_level_is_attempt(event: Mapping[str, object]) -> bool:
+    """Default attempt predicate: a bare a-MCP event whose outcome is `attempted`."""
+    return event.get(fields.OUTCOME) == Outcome.ATTEMPTED
+    # end def
+
+
+def _identity_event(event: Mapping[str, object]) -> object:
+    """Default embedded-event accessor: the sealed event is itself the a-MCP event."""
+    return event
+    # end def
+
+
+@dataclass(frozen=True)
+class RecordAdapter:
+    """How the verifier reads a-MCP correlation fields and the embedded event out of a sealed record.
+
+    The defaults read a bare, top-level a-MCP event. A caller that seals a-MCP records inside another
+    envelope (e.g. SEP-3004) injects accessors that reach into it, so the verifier can correlate and
+    schema-check the enveloped event without the SDK importing any specific envelope shape. Override
+    only the accessors you need; the rest keep the top-level defaults.
+
+    Attributes:
+        id_of: Extract the correlation key that pairs an attempt with its terminal outcome.
+        is_attempt: True when the record is an attempt, False for a terminal outcome.
+        event_of: Extract the embedded a-MCP event that `verify_ledger` schema-checks.
+    """
+
+    id_of: Callable[[Mapping[str, object]], object] = _top_level_id
+    is_attempt: Callable[[Mapping[str, object]], bool] = _top_level_is_attempt
+    event_of: Callable[[Mapping[str, object]], object] = _identity_event
+    # end class
+
+
+DEFAULT_ADAPTER = RecordAdapter()
+
+
+def verify_chain(
+    records: list[SealedRecord], anchored_digest: str | None = None, *, adapter: RecordAdapter = DEFAULT_ADAPTER
+) -> VerifyReport:
     """Verify chain integrity alone, independent of the event vocabulary (§8.3).
 
     Checks sequence order, previous-hash linkage, record-hash recomputation, attempt/outcome
@@ -54,6 +99,9 @@ def verify_chain(records: list[SealedRecord], anchored_digest: str | None = None
     Args:
         records: The sealed records in append order (from a `Ledger` or reloaded storage).
         anchored_digest: An out-of-band anchored tail digest to compare against, if available (§8.3).
+        adapter: How to read the correlation key and attempt flag from each sealed record. Defaults to
+            a bare top-level a-MCP event; inject accessors to correlate records sealed inside an
+            envelope (e.g. SEP-3004).
 
     Returns:
         A report; `ok` is True only when no issues were found.
@@ -87,12 +135,17 @@ def verify_chain(records: list[SealedRecord], anchored_digest: str | None = None
             )
             # end if
 
-        outcome = event.get(fields.OUTCOME)
-        event_id = event.get(fields.ID)
-        if outcome == Outcome.ATTEMPTED:
+        event_id = adapter.id_of(event)
+        if adapter.is_attempt(event):
             attempted_ids.add(event_id)
         elif event_id not in attempted_ids:
-            issues.append(VerifyIssue(seq=record.seq, kind=ORPHANED_OUTCOME, detail=f'outcome={outcome} id={event_id}'))
+            issues.append(
+                VerifyIssue(
+                    seq=record.seq,
+                    kind=ORPHANED_OUTCOME,
+                    detail=f'terminal outcome with no matching attempt, id={event_id}',
+                )
+            )
             # end if
 
         prev_recomputed = recomputed
@@ -111,24 +164,31 @@ def verify_chain(records: list[SealedRecord], anchored_digest: str | None = None
     # end def
 
 
-def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = None) -> VerifyReport:
+def verify_ledger(
+    records: list[SealedRecord], anchored_digest: str | None = None, *, adapter: RecordAdapter = DEFAULT_ADAPTER
+) -> VerifyReport:
     """Verify chain integrity and A-MCP event-schema conformance (§8.3 + §7.1).
 
-    `verify_chain` followed by a per-record schema check: a record that is not a strict A-MCP event is
-    flagged `schema-invalid`. For A-MCP events the result is identical to `verify_chain`.
+    `verify_chain` followed by a per-record schema check: a record whose embedded event is not a valid
+    A-MCP event is flagged `schema-invalid`. The check is read-lenient on `spec_version` (any published
+    version, not only the current one), so a chain sealed under an earlier version still verifies - its
+    bytes are immutable evidence. For valid A-MCP events the result is identical to `verify_chain`.
 
     Args:
         records: The sealed records in append order (from a `Ledger` or reloaded storage).
         anchored_digest: An out-of-band anchored tail digest to compare against, if available (§8.3).
+        adapter: How to read the correlation fields and extract the embedded a-MCP event. Defaults to a
+            bare top-level a-MCP event; inject `event_of` to schema-check an event sealed inside an
+            envelope (e.g. SEP-3004).
 
     Returns:
         A report; `ok` is True only when no issues were found.
     """
-    report = verify_chain(records, anchored_digest)
+    report = verify_chain(records, anchored_digest, adapter=adapter)
     schema_issues = [
         VerifyIssue(seq=record.seq, kind=reasons.SCHEMA_INVALID, detail=error)
         for record in records
-        if (error := first_validation_error(record.event)) is not None
+        if (error := first_sealed_validation_error(adapter.event_of(record.event))) is not None
     ]
     if not schema_issues:
         return report

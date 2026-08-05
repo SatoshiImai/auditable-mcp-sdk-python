@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, 
 from auditable_mcp.canonical import MAX_SAFE_INTEGER
 
 # The only spec version defined by this contract; a mismatch is a hard validation error.
-SPEC_VERSION: Literal['auditable-mcp/0.1.1'] = 'auditable-mcp/0.1.1'
+SPEC_VERSION: Literal['auditable-mcp/0.2'] = 'auditable-mcp/0.2'
 
 # §7.6 Tier-1 code spaces pinned onto the wire contracts. The tool abort reason (on an aborted
 # outcome), the host reject reason, and the unavailable reason are three distinct spaces.
@@ -109,7 +109,7 @@ class AuditEvent(WireModel):
 
     id: str = Field(pattern=UUID_PATTERN)
     # REQUIRED and hashed into the canonical bytes (§4): a defaulted-in version would fork the chain.
-    spec_version: Literal['auditable-mcp/0.1.1']
+    spec_version: Literal['auditable-mcp/0.2']
     ts: str = Field(pattern=DATETIME_PATTERN)
     call_id: str = Field(min_length=1)
     traceparent: str | None = None
@@ -135,6 +135,22 @@ class AuditEvent(WireModel):
         return self
         # end def
 
+    # end class
+
+
+# Published spec versions a verifier accepts when reading a sealed ledger. Emission and ingest stay
+# pinned to the current SPEC_VERSION (AuditEvent, §6.1); a verifier reading a stored ledger must accept
+# records sealed under an earlier published version, since their bytes and hash chain are immutable
+# evidence. Keep this tuple in sync with the SealedAuditEvent literal below.
+KNOWN_SPEC_VERSIONS = ('auditable-mcp/0.1', 'auditable-mcp/0.1.1', 'auditable-mcp/0.2')
+
+
+class SealedAuditEvent(AuditEvent):
+    """Verification view of a sealed event: read-lenient on `spec_version` (accepts any published version)."""
+
+    # Deliberately widens the parent's pinned literal. This model only validates stored records; it is
+    # never substituted where the strict wire AuditEvent is required, so the widening is safe.
+    spec_version: Literal['auditable-mcp/0.1', 'auditable-mcp/0.1.1', 'auditable-mcp/0.2']  # type: ignore[assignment]
     # end class
 
 
@@ -194,14 +210,25 @@ AttemptResponse = Annotated[
 ]
 
 
-def first_validation_error(event: object) -> str | None:
-    """Return the first structural validation message for `event` as an AuditEvent, or None if valid.
+def _first_error(model: type[BaseModel], event: object) -> str | None:
+    """Return the first Pydantic validation message for `event` under `model`, or None if valid."""
+    try:
+        model.model_validate(event)
+    except ValidationError as exc:
+        error = exc.errors()[0]
+        location = '.'.join(str(part) for part in error['loc'])
+        return f'{location}: {error["msg"]}' if location else error['msg']
+        # end try
+    return None
+    # end def
 
-    This is the shared shape check used at the host ingest boundary (§7.1) and by the ledger verifier.
-    It enforces the event's structure, types, required fields, and closed shape. Pattern-level
-    conformance (uuid / date-time / hex regexes) is defined by the normative JSON Schema under
-    `spec/schema/` and covered by the conformance vectors; tightening ingest to enforce those patterns
-    directly is a planned hardening.
+
+def first_validation_error(event: object) -> str | None:
+    """Return the first structural validation message for `event` as a wire AuditEvent, or None if valid.
+
+    This is the strict ingest/emission shape check (§7.1): `spec_version` must equal the current
+    `SPEC_VERSION`. It enforces the event's structure, types, required fields, and closed shape. The
+    ledger verifier uses `first_sealed_validation_error` instead, which accepts any published version.
 
     Args:
         event: The value to validate.
@@ -209,12 +236,22 @@ def first_validation_error(event: object) -> str | None:
     Returns:
         None if valid, otherwise the first error as ``<location>: <message>``.
     """
-    try:
-        AuditEvent.model_validate(event)
-    except ValidationError as exc:
-        error = exc.errors()[0]
-        location = '.'.join(str(part) for part in error['loc'])
-        return f'{location}: {error["msg"]}' if location else error['msg']
-        # end try
-    return None
+    return _first_error(AuditEvent, event)
+    # end def
+
+
+def first_sealed_validation_error(event: object) -> str | None:
+    """Like `first_validation_error`, but read-lenient on `spec_version` (ledger verification).
+
+    A sealed record is immutable evidence, so a verifier reading a stored ledger accepts records sealed
+    under any published `spec_version` (`KNOWN_SPEC_VERSIONS`) - the record's bytes and hash chain do
+    not change with the reader's version. Ingest and emission stay pinned to the current version.
+
+    Args:
+        event: The value to validate.
+
+    Returns:
+        None if valid, otherwise the first error as ``<location>: <message>``.
+    """
+    return _first_error(SealedAuditEvent, event)
     # end def
