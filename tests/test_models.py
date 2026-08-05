@@ -20,7 +20,7 @@ def _minimal_event() -> AuditEvent:
     """Build a minimal valid attempt event."""
     return AuditEvent(
         id='00000000-0000-4000-8000-000000000001',
-        spec_version='auditable-mcp/0.1.1',
+        spec_version='auditable-mcp/0.2',
         ts='2026-07-15T00:00:01.000Z',
         call_id='call_abc',
         action_type='db.read',
@@ -38,7 +38,7 @@ def test_to_wire_omits_absent_optionals() -> None:
     assert 'reason' not in wire
     assert 'signature' not in wire
     assert 'scope_hint' not in wire['target_resource']
-    assert wire['spec_version'] == 'auditable-mcp/0.1.1'
+    assert wire['spec_version'] == 'auditable-mcp/0.2'
     # end def
 
 
@@ -47,7 +47,7 @@ def test_boolean_effects_are_not_coerced() -> None:
     with pytest.raises(ValidationError):
         AuditEvent(
             id='00000000-0000-4000-8000-000000000001',
-            spec_version='auditable-mcp/0.1.1',
+            spec_version='auditable-mcp/0.2',
             ts='2026-07-15T00:00:01.000Z',
             call_id='call_abc',
             action_type='db.read',
@@ -66,7 +66,7 @@ def test_unknown_fields_are_forbidden() -> None:
         AuditEvent.model_validate(
             {
                 'id': '00000000-0000-4000-8000-000000000001',
-                'spec_version': 'auditable-mcp/0.1.1',
+                'spec_version': 'auditable-mcp/0.2',
                 'ts': '2026-07-15T00:00:01.000Z',
                 'call_id': 'call_abc',
                 'action_type': 'db.read',
@@ -87,7 +87,7 @@ def test_wrong_spec_version_is_rejected() -> None:
         AuditEvent.model_validate(
             {
                 'id': '00000000-0000-4000-8000-000000000001',
-                'spec_version': 'auditable-mcp/0.2',
+                'spec_version': 'auditable-mcp/0.1.1',
                 'ts': '2026-07-15T00:00:01.000Z',
                 'call_id': 'call_abc',
                 'action_type': 'db.read',

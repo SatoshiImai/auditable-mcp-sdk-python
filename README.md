@@ -1,7 +1,7 @@
 # Auditable MCP SDK (Python)
 
 A protocol machine for [Auditable MCP](https://github.com/SatoshiImai/mcp-audit-extension)
-(`auditable-mcp/0.1.1`). It lets an MCP tool self-attest its internal domain operations (SQL queries,
+(`auditable-mcp/0.2`). It lets an MCP tool self-attest its internal domain operations (SQL queries,
 downstream API calls) and lets a host seal those attestations into a tamper-evident, hash-chained
 ledger.
 
@@ -31,7 +31,7 @@ What it does not do (your concern, via adapters):
 
 ## Status
 
-Alpha, tracking `auditable-mcp/0.1.1`. The public API is unstable until v0.1 is tagged.
+Alpha, tracking `auditable-mcp/0.2`. The public API is unstable while the spec is a pre-1.0 draft.
 
 ## Install
 
@@ -83,7 +83,7 @@ async def main() -> None:
         "db.query",
         {"kind": "database", "ref": "analytics-postgres"},
         mutates=False,
-        egress=True,
+        egress=False,
         disclose={"dialect": "postgres"},   # optional cleartext context
         commit={"sql": "SELECT id FROM users"},  # optional hash commitment
     ):

@@ -4,7 +4,7 @@ This package is a pure protocol machine (canonicalization, hashing, signing, sta
 It carries no storage backend and no tool business logic; persistence is the integrator's concern,
 supplied through the adapter interfaces this SDK defines.
 
-The `spec_version` implemented is `auditable-mcp/0.1.1`.
+The `spec_version` implemented is `auditable-mcp/0.2`.
 """
 
 from auditable_mcp.canonical import (
@@ -73,7 +73,14 @@ from auditable_mcp.transport import (
     reject,
     unavailable,
 )
-from auditable_mcp.verify import VerifyIssue, VerifyReport, verify_chain, verify_ledger
+from auditable_mcp.verify import (
+    DEFAULT_ADAPTER,
+    RecordAdapter,
+    VerifyIssue,
+    VerifyReport,
+    verify_chain,
+    verify_ledger,
+)
 
 __version__ = '0.1.1'
 
@@ -127,6 +134,8 @@ __all__ = [
     'UnavailableResponse',
     'VerifyIssue',
     'VerifyReport',
+    'RecordAdapter',
+    'DEFAULT_ADAPTER',
     'WireModel',
     'accept',
     'auditable_tool',

@@ -3,7 +3,7 @@
     {
       "event": {
         "id": "00000000-0000-4000-8000-00000000000a",
-        "spec_version": "auditable-mcp/0.1.1",
+        "spec_version": "auditable-mcp/0.2",
         "ts": "2026-07-15T00:00:10.000Z",
         "call_id": "call_l2",
         "action_type": "db.write",
@@ -22,12 +22,12 @@
       "seq": 0,
       "host_ts": "2026-07-15T00:00:20.000Z",
       "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-      "record_hash": "d895336dbc0022e923340f3d217536d1dfdfb9b7cdd5a9d5b7da1ffda8b87b76"
+      "record_hash": "ff47babe763b600ea60ad262d0cf0dce3cde5f3757e7d577399e590d19c267d1"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-00000000000a",
-        "spec_version": "auditable-mcp/0.1.1",
+        "spec_version": "auditable-mcp/0.2",
         "ts": "2026-07-15T00:00:11.000Z",
         "call_id": "call_l2",
         "action_type": "db.write",
@@ -45,9 +45,9 @@
       },
       "seq": 1,
       "host_ts": "2026-07-15T00:00:21.000Z",
-      "previous_hash": "d895336dbc0022e923340f3d217536d1dfdfb9b7cdd5a9d5b7da1ffda8b87b76",
-      "record_hash": "d19cf80da9ba7ee6c1602c2e5eeeb9ae5f8c8bd37820c710a6ba4773fb598689"
+      "previous_hash": "ff47babe763b600ea60ad262d0cf0dce3cde5f3757e7d577399e590d19c267d1",
+      "record_hash": "e04f3afbadee4d8e7aa57cb8f12d164633858fd88736b73c68d707268729ebd1"
     }
   ],
-  "digest": "d19cf80da9ba7ee6c1602c2e5eeeb9ae5f8c8bd37820c710a6ba4773fb598689"
+  "digest": "e04f3afbadee4d8e7aa57cb8f12d164633858fd88736b73c68d707268729ebd1"
 }

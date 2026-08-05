@@ -9,7 +9,7 @@
     },
     "spec_version": {
       "type": "string",
-      "const": "auditable-mcp/0.1.1"
+      "const": "auditable-mcp/0.2"
     },
     "ts": {
       "type": "string",

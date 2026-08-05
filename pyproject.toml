@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 # itself. The import package stays `auditable_mcp`.
 [project]
 name = "auditable-mcp-sdk"
-version = "0.1.1"
+version = "0.2.0"
 description = "Auditable MCP SDK — a protocol machine for tool self-attestation into a tamper-evident host ledger (auditable-mcp/0.1.1)."
 readme = "README.md"
 # Developed and pinned on 3.14.6 (see .python-version); the published floor is kept lower for OSS reach.

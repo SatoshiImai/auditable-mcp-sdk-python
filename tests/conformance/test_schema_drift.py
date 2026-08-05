@@ -19,7 +19,7 @@ from auditable_mcp.models import AuditCapability, first_validation_error
 
 _VALID_BASE: dict[str, Any] = {
     'id': '00000000-0000-4000-8000-000000000001',
-    'spec_version': 'auditable-mcp/0.1.1',
+    'spec_version': 'auditable-mcp/0.2',
     'ts': '2026-07-15T00:00:01.000Z',
     'call_id': 'call_abc',
     'action_type': 'db.read',
@@ -81,7 +81,7 @@ def test_pydantic_acceptance_matches_the_vendored_schema(event_schema_validator:
     # end def
 
 
-_CAP_VALID: dict[str, Any] = {'spec_version': 'auditable-mcp/0.1.1', 'level': 'L1', 'attempt': 'request'}
+_CAP_VALID: dict[str, Any] = {'spec_version': 'auditable-mcp/0.2', 'level': 'L1', 'attempt': 'request'}
 
 # (name, capability, expected_valid) — all three fields REQUIRED (§6.1): a missing one is rejected, not
 # defaulted, so a peer cannot bypass version negotiation by omission.

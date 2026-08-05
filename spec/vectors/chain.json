@@ -3,99 +3,143 @@
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "auditable-mcp/0.1.1",
+        "spec_version": "auditable-mcp/0.2",
         "ts": "1970-01-01T00:16:41.000Z",
         "call_id": "call_abc",
         "action_type": "db.query",
         "mutates": false,
-        "egress": true,
+        "egress": false,
         "target_resource": {
           "kind": "database",
-          "ref": "analytics-postgres"
+          "ref": "customer-postgres"
         },
         "outcome": "attempted",
         "action_context": {
           "dialect": "postgres",
           "tables_accessed": [
-            "users",
-            "payments"
+            "customers"
           ]
         },
-        "action_context_hash": "sha256:8e7d5df037445c61c57929121dd6312029c287c9789dabdc78b78b7861ec2967"
+        "action_context_hash": "sha256:f951d439bc585c7850ed1d1ea1f232150fca355cf9814ba378a0755802cbf81e"
       },
       "seq": 0,
       "host_ts": "2026-07-15T00:00:01.000Z",
       "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-      "record_hash": "9b1a1d68dd2e57c5a133d245423ff2ec76c7ee42be9936dc7bc844ec923b3f89"
+      "record_hash": "2f71d0b27f4c16c1a5d8d41c2ddb489ad1ba46549f51104b1fc067d34d251af4"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "auditable-mcp/0.1.1",
+        "spec_version": "auditable-mcp/0.2",
         "ts": "1970-01-01T00:16:41.000Z",
         "call_id": "call_abc",
         "action_type": "db.query",
         "mutates": false,
-        "egress": true,
+        "egress": false,
         "target_resource": {
           "kind": "database",
-          "ref": "analytics-postgres"
+          "ref": "customer-postgres"
         },
         "outcome": "success",
         "action_context": {
           "dialect": "postgres",
           "tables_accessed": [
-            "users",
-            "payments"
+            "customers"
           ]
         },
-        "action_context_hash": "sha256:8e7d5df037445c61c57929121dd6312029c287c9789dabdc78b78b7861ec2967"
+        "action_context_hash": "sha256:f951d439bc585c7850ed1d1ea1f232150fca355cf9814ba378a0755802cbf81e"
       },
       "seq": 1,
       "host_ts": "2026-07-15T00:00:02.000Z",
-      "previous_hash": "9b1a1d68dd2e57c5a133d245423ff2ec76c7ee42be9936dc7bc844ec923b3f89",
-      "record_hash": "7f50d6ab6b2a4c5420493f8afee80e97bc6a34885f917bc628a14f888a2be9d0"
+      "previous_hash": "2f71d0b27f4c16c1a5d8d41c2ddb489ad1ba46549f51104b1fc067d34d251af4",
+      "record_hash": "7b2d13c5714d88c566c8194077d30c1d51a26366b229c50d120aa3db8852a594"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "auditable-mcp/0.1.1",
+        "spec_version": "auditable-mcp/0.2",
         "ts": "1970-01-01T00:16:42.000Z",
         "call_id": "call_abc",
-        "action_type": "db.write",
-        "mutates": true,
-        "egress": false,
+        "action_type": "ext.geocode",
+        "mutates": false,
+        "egress": true,
         "target_resource": {
-          "kind": "table",
-          "ref": "analysis_results"
+          "kind": "endpoint",
+          "ref": "https://geo.example/v1/lookup"
         },
-        "outcome": "attempted"
+        "outcome": "attempted",
+        "action_context": {
+          "provider": "geo.example"
+        }
       },
       "seq": 2,
       "host_ts": "2026-07-15T00:00:03.000Z",
-      "previous_hash": "7f50d6ab6b2a4c5420493f8afee80e97bc6a34885f917bc628a14f888a2be9d0",
-      "record_hash": "c8ed870569ef006e42c0c61d0bcf8cea355f20338d2bb4c1ad6541e1be75cc32"
+      "previous_hash": "7b2d13c5714d88c566c8194077d30c1d51a26366b229c50d120aa3db8852a594",
+      "record_hash": "32ade553cba81c60454f6a86e235704780a399387b564ad51ef29b525cbee602"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "auditable-mcp/0.1.1",
+        "spec_version": "auditable-mcp/0.2",
         "ts": "1970-01-01T00:16:42.000Z",
+        "call_id": "call_abc",
+        "action_type": "ext.geocode",
+        "mutates": false,
+        "egress": true,
+        "target_resource": {
+          "kind": "endpoint",
+          "ref": "https://geo.example/v1/lookup"
+        },
+        "outcome": "success",
+        "action_context": {
+          "provider": "geo.example"
+        }
+      },
+      "seq": 3,
+      "host_ts": "2026-07-15T00:00:04.000Z",
+      "previous_hash": "32ade553cba81c60454f6a86e235704780a399387b564ad51ef29b525cbee602",
+      "record_hash": "5e28594003da59fd0d8981a8be8514f959f7dc38cfb6bc956a3e4b03c41208a2"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "spec_version": "auditable-mcp/0.2",
+        "ts": "1970-01-01T00:16:43.000Z",
         "call_id": "call_abc",
         "action_type": "db.write",
         "mutates": true,
         "egress": false,
         "target_resource": {
           "kind": "table",
-          "ref": "analysis_results"
+          "ref": "enriched_addresses"
+        },
+        "outcome": "attempted"
+      },
+      "seq": 4,
+      "host_ts": "2026-07-15T00:00:05.000Z",
+      "previous_hash": "5e28594003da59fd0d8981a8be8514f959f7dc38cfb6bc956a3e4b03c41208a2",
+      "record_hash": "e65315ebe2ab6f7d7a767ab92bb466786df66fea1740fe80bae2d6d7774c6d50"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "spec_version": "auditable-mcp/0.2",
+        "ts": "1970-01-01T00:16:43.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "enriched_addresses"
         },
         "outcome": "success"
       },
-      "seq": 3,
-      "host_ts": "2026-07-15T00:00:04.000Z",
-      "previous_hash": "c8ed870569ef006e42c0c61d0bcf8cea355f20338d2bb4c1ad6541e1be75cc32",
-      "record_hash": "ad146486bc0777678b46ab6a52ea1590bb979f94fc61200de732afad98ba78ef"
+      "seq": 5,
+      "host_ts": "2026-07-15T00:00:06.000Z",
+      "previous_hash": "e65315ebe2ab6f7d7a767ab92bb466786df66fea1740fe80bae2d6d7774c6d50",
+      "record_hash": "242e6f5c5a61084f8cd262023ee8c8b088b94f50938f6c3bca8f0f0a5ab45e1c"
     }
   ],
-  "digest": "ad146486bc0777678b46ab6a52ea1590bb979f94fc61200de732afad98ba78ef"
+  "digest": "242e6f5c5a61084f8cd262023ee8c8b088b94f50938f6c3bca8f0f0a5ab45e1c"
 }

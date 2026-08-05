@@ -1,17 +1,18 @@
 """Unit tests for the ledger verifier."""
 
 import dataclasses
-from typing import Any
+from typing import Any, cast
 
 from auditable_mcp.ledger import Ledger, SealedRecord
-from auditable_mcp.verify import verify_chain, verify_ledger
+from auditable_mcp.models import first_sealed_validation_error, first_validation_error
+from auditable_mcp.verify import RecordAdapter, verify_chain, verify_ledger
 
 
 def _event(event_id: str, outcome: str = 'attempted', **overrides: object) -> dict[str, object]:
     """Build a wire event with an overridable outcome and fields."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.1.1',
+        'spec_version': 'auditable-mcp/0.2',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
@@ -37,6 +38,60 @@ def _sealed_pair() -> Ledger:
 def _kinds(records: list[SealedRecord], anchored: str | None = None) -> set[str]:
     """Return the set of issue kinds from verifying `records`."""
     return {issue.kind for issue in verify_ledger(records, anchored).issues}
+    # end def
+
+
+def test_prior_version_sealed_chain_still_verifies() -> None:
+    """A chain sealed under an earlier published spec_version verifies: its bytes are immutable evidence."""
+    ledger = Ledger('tenant-a')
+    legacy = 'auditable-mcp/0.1.1'
+    ledger.append(
+        _event('00000000-0000-4000-8000-000000000001', 'attempted', spec_version=legacy), '2026-07-15T00:00:01.000Z'
+    )
+    ledger.append(
+        _event('00000000-0000-4000-8000-000000000001', 'success', spec_version=legacy), '2026-07-15T00:00:02.000Z'
+    )
+    report = verify_ledger(ledger.records())
+    assert report.ok
+    assert report.issues == []
+    # end def
+
+
+def test_ingest_strict_but_verification_lenient_on_spec_version() -> None:
+    """Read/write split: ingest rejects a prior spec_version; the sealed-record verifier accepts it."""
+    legacy = _event('00000000-0000-4000-8000-000000000001', spec_version='auditable-mcp/0.1.1')
+    assert first_validation_error(legacy) is not None
+    assert first_sealed_validation_error(legacy) is None
+    # end def
+
+
+def _enveloped(amcp_event: dict[str, object]) -> dict[str, object]:
+    """Wrap an a-MCP event the way a SEP-3004 host would: nested under an envelope key."""
+    return {'schema': 'sep3004', 'sealed_at': '2026-07-15T00:00:00Z', 'amcp': amcp_event}
+    # end def
+
+
+def test_verify_ledger_reaches_into_an_envelope_via_adapter() -> None:
+    """An injected adapter lets the verifier correlate and schema-check a-MCP events sealed in envelopes."""
+    ledger = Ledger('tenant-a')
+    ledger.append(_enveloped(_event('00000000-0000-4000-8000-000000000001', 'attempted')), '2026-07-15T00:00:01.000Z')
+    ledger.append(_enveloped(_event('00000000-0000-4000-8000-000000000001', 'success')), '2026-07-15T00:00:02.000Z')
+    adapter = RecordAdapter(
+        id_of=lambda event: cast('dict[str, object]', event['amcp'])['id'],
+        is_attempt=lambda event: cast('dict[str, object]', event['amcp'])['outcome'] == 'attempted',
+        event_of=lambda event: event['amcp'],
+    )
+    report = verify_ledger(ledger.records(), adapter=adapter)
+    assert report.ok
+    assert report.issues == []
+    # end def
+
+
+def test_default_adapter_cannot_read_an_envelope() -> None:
+    """Without an adapter the envelope's top level is not an a-MCP event: schema-invalid is raised."""
+    ledger = Ledger('tenant-a')
+    ledger.append(_enveloped(_event('00000000-0000-4000-8000-000000000001', 'attempted')), '2026-07-15T00:00:01.000Z')
+    assert 'schema-invalid' in _kinds(ledger.records())
     # end def
 
 
