@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, 
 from auditable_mcp.canonical import MAX_SAFE_INTEGER
 
 # The only spec version defined by this contract; a mismatch is a hard validation error.
-SPEC_VERSION: Literal['auditable-mcp/0.1.1'] = 'auditable-mcp/0.1.1'
+SPEC_VERSION: Literal['auditable-mcp/0.2'] = 'auditable-mcp/0.2'
 
 # §7.6 Tier-1 code spaces pinned onto the wire contracts. The tool abort reason (on an aborted
 # outcome), the host reject reason, and the unavailable reason are three distinct spaces.
@@ -109,7 +109,7 @@ class AuditEvent(WireModel):
 
     id: str = Field(pattern=UUID_PATTERN)
     # REQUIRED and hashed into the canonical bytes (§4): a defaulted-in version would fork the chain.
-    spec_version: Literal['auditable-mcp/0.1.1']
+    spec_version: Literal['auditable-mcp/0.2']
     ts: str = Field(pattern=DATETIME_PATTERN)
     call_id: str = Field(min_length=1)
     traceparent: str | None = None

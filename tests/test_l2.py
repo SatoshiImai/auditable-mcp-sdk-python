@@ -78,7 +78,7 @@ def _event(event_id: str = '00000000-0000-4000-8000-000000000001', **overrides: 
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.1.1',
+        'spec_version': 'auditable-mcp/0.2',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
