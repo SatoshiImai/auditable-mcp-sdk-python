@@ -95,6 +95,138 @@ def test_default_adapter_cannot_read_an_envelope() -> None:
     # end def
 
 
+def test_a_record_that_names_no_call_is_exempt_from_correlation() -> None:
+    """An envelope may seal records that are not tool calls; `id_of` returning None says so.
+
+    Without the exemption every such record is a terminal outcome whose attempt can never exist, so a
+    chain holding a prompt and two reasoning records reports three anomalies while being intact.
+    """
+    ledger = Ledger('tenant-a')
+    for n, kind in enumerate(('prompt', 'reasoning', 'reasoning'), start=1):
+        ledger.append({'kind': kind, 'text': f'{kind} {n}'}, f'2026-07-15T00:00:0{n}.000Z')
+        # end for
+    adapter = RecordAdapter(id_of=lambda event: None, is_attempt=lambda event: False)
+    report = verify_chain(ledger.records(), adapter=adapter)
+    assert report.ok
+    assert report.issues == []
+    # end def
+
+
+def test_an_exempt_record_does_not_mask_a_real_orphan() -> None:
+    """Exempting id-less records must not seed a wildcard that pairs with a call whose id is missing."""
+    ledger = Ledger('tenant-a')
+    ledger.append({'kind': 'prompt'}, '2026-07-15T00:00:01.000Z')
+    ledger.append({'kind': 'tool', 'call': 'call-1'}, '2026-07-15T00:00:02.000Z')
+    adapter = RecordAdapter(id_of=lambda event: event.get('call'), is_attempt=lambda event: False)
+    report = verify_chain(ledger.records(), adapter=adapter)
+    assert [issue.kind for issue in report.issues] == ['orphaned-outcome']
+    # end def
+
+
+_PRINCIPAL_ADAPTER = RecordAdapter(principal_of=lambda event: event.get('principal_id'))
+
+
+def _bound_pair(principal_attempt: str, principal_outcome: str) -> Ledger:
+    """Seal an attempt+outcome pair, each naming its governed identity in the event."""
+    eid = '00000000-0000-4000-8000-000000000001'
+    ledger = Ledger('tenant-a')
+    ledger.append(_event(eid, 'attempted', principal_id=principal_attempt), '2026-07-15T00:00:01.000Z')
+    ledger.append(_event(eid, 'success', principal_id=principal_outcome), '2026-07-15T00:00:02.000Z')
+    return ledger
+    # end def
+
+
+def test_expected_principal_match_is_clean() -> None:
+    """A chain whose records all name the expected principal raises no anomaly."""
+    report = verify_chain(
+        _bound_pair('tenant-a', 'tenant-a').records(), adapter=_PRINCIPAL_ADAPTER, expected_principal='tenant-a'
+    )
+    assert report.ok
+    assert report.issues == []
+    # end def
+
+
+def test_expected_principal_flags_a_single_foreign_record() -> None:
+    """A single record naming a different principal is flagged principal-mismatch on that seq (per-record)."""
+    report = verify_chain(
+        _bound_pair('tenant-a', 'tenant-b').records(), adapter=_PRINCIPAL_ADAPTER, expected_principal='tenant-a'
+    )
+    assert not report.ok
+    assert [(issue.seq, issue.kind) for issue in report.issues] == [(1, 'principal-mismatch')]
+    # end def
+
+
+def test_transplanted_chain_fails_every_record() -> None:
+    """A valid chain verified against a different principal is principal-mismatch throughout; hash and chain pass."""
+    report = verify_chain(
+        _bound_pair('tenant-a', 'tenant-a').records(), adapter=_PRINCIPAL_ADAPTER, expected_principal='tenant-b'
+    )
+    assert not report.ok
+    assert [issue.kind for issue in report.issues] == ['principal-mismatch', 'principal-mismatch']
+    # end def
+
+
+def test_absent_principal_fails_closed() -> None:
+    """A bare record with no bound identity, when a principal is expected, is principal-mismatch (fail-closed)."""
+    report = verify_chain(_sealed_pair().records(), expected_principal='tenant-a')
+    assert not report.ok
+    assert all(issue.kind == 'principal-mismatch' for issue in report.issues)
+    # end def
+
+
+def test_no_expected_principal_skips_the_check() -> None:
+    """Without expected_principal a clean bare chain verifies ok (the check is disabled by default)."""
+    assert verify_chain(_sealed_pair().records()).ok
+    # end def
+
+
+def test_verify_ledger_matches_principal_through_an_envelope() -> None:
+    """verify_ledger schema-checks the embedded a-MCP event and matches the envelope's principal; a transplant fails."""
+    eid = '00000000-0000-4000-8000-000000000001'
+    ledger = Ledger('tenant-a')
+    ledger.append(
+        {'schema': 'sep3004', 'principal_id': 'tenant-a', 'amcp': _event(eid, 'attempted')}, '2026-07-15T00:00:01.000Z'
+    )
+    ledger.append(
+        {'schema': 'sep3004', 'principal_id': 'tenant-a', 'amcp': _event(eid, 'success')}, '2026-07-15T00:00:02.000Z'
+    )
+    adapter = RecordAdapter(
+        id_of=lambda event: cast('dict[str, object]', event['amcp'])['id'],
+        is_attempt=lambda event: cast('dict[str, object]', event['amcp'])['outcome'] == 'attempted',
+        event_of=lambda event: event['amcp'],
+        principal_of=lambda event: event.get('principal_id'),
+    )
+    assert verify_ledger(ledger.records(), adapter=adapter, expected_principal='tenant-a').ok
+    transplant = verify_ledger(ledger.records(), adapter=adapter, expected_principal='tenant-b')
+    assert not transplant.ok
+    assert [issue.kind for issue in transplant.issues] == ['principal-mismatch', 'principal-mismatch']
+    # end def
+
+
+def test_principal_equality_is_strict_no_case_or_whitespace_normalization() -> None:
+    """Equality is exact: a case- or whitespace-variant identity is a mismatch (normalization is principal_of's job)."""
+    report = verify_chain(
+        _bound_pair('Tenant-A', 'tenant-a ').records(), adapter=_PRINCIPAL_ADAPTER, expected_principal='tenant-a'
+    )
+    assert [(issue.seq, issue.kind) for issue in report.issues] == [
+        (0, 'principal-mismatch'),
+        (1, 'principal-mismatch'),
+    ]
+    # end def
+
+
+def test_principal_mismatch_coexists_with_a_tampered_record() -> None:
+    """A tampered record reports record-hash-mismatch and principal-mismatch together; neither masks the other."""
+    records = _bound_pair('tenant-a', 'tenant-a').records()
+    records[1] = dataclasses.replace(
+        records[1], event=_event('00000000-0000-4000-8000-000000000001', 'failed', principal_id='tenant-a')
+    )
+    report = verify_chain(records, adapter=_PRINCIPAL_ADAPTER, expected_principal='tenant-b')
+    kinds = {issue.kind for issue in report.issues}
+    assert {'record-hash-mismatch', 'principal-mismatch'} <= kinds
+    # end def
+
+
 def test_clean_ledger_verifies_ok() -> None:
     """A well-formed, correlated chain reports ok with the tail digest."""
     ledger = _sealed_pair()
