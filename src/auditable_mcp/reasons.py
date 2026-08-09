@@ -29,6 +29,11 @@ HOST_UNAVAILABLE: Final = 'host-unavailable'
 # here (a distinct code space, disambiguated by the anomaly `kind` field).
 RECORD_HASH_MISMATCH: Final = 'record-hash-mismatch'
 DIGEST_MISMATCH: Final = 'digest-mismatch'
+# SDK-specific: defined by neither a-MCP §7.6 nor SEP-3004. SEP-3004 binds `principal_id` in its
+# hashed core and detects tampering of it (§2.6 event_hash recompute), but never compares that identity
+# against the principal a partition is expected to hold; a-MCP delegates identity to the envelope
+# entirely. This kind flags that comparison - the detection half neither spec defines.
+PRINCIPAL_MISMATCH: Final = 'principal-mismatch'
 SEQ_GAP: Final = 'seq-gap'
 SIGNER_SEQ_GAP: Final = 'signer-seq-gap'
 ORPHANED_OUTCOME: Final = 'orphaned-outcome'
