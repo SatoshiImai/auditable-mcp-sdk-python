@@ -21,6 +21,7 @@ from auditable_mcp.models import Outcome, first_sealed_validation_error
 SEQ_GAP = reasons.SEQ_GAP
 RECORD_HASH_MISMATCH = reasons.RECORD_HASH_MISMATCH
 DIGEST_MISMATCH = reasons.DIGEST_MISMATCH
+PRINCIPAL_MISMATCH = reasons.PRINCIPAL_MISMATCH
 ORPHANED_OUTCOME = reasons.ORPHANED_OUTCOME
 
 
@@ -63,24 +64,38 @@ def _identity_event(event: Mapping[str, object]) -> object:
     # end def
 
 
+def _no_principal(event: Mapping[str, object]) -> object:
+    """Default principal accessor: a bare a-MCP event binds no governed identity."""
+    del event
+    return None
+    # end def
+
+
 @dataclass(frozen=True)
 class RecordAdapter:
-    """How the verifier reads a-MCP correlation fields and the embedded event out of a sealed record.
+    """How the verifier reads a-MCP correlation fields, the embedded event, and the governed identity.
 
     The defaults read a bare, top-level a-MCP event. A caller that seals a-MCP records inside another
-    envelope (e.g. SEP-3004) injects accessors that reach into it, so the verifier can correlate and
-    schema-check the enveloped event without the SDK importing any specific envelope shape. Override
-    only the accessors you need; the rest keep the top-level defaults.
+    envelope (e.g. SEP-3004) injects accessors that reach into it, so the verifier can correlate,
+    schema-check, and principal-match the enveloped event without the SDK importing any specific
+    envelope shape. Override only the accessors you need; the rest keep the top-level defaults.
 
     Attributes:
         id_of: Extract the correlation key that pairs an attempt with its terminal outcome.
         is_attempt: True when the record is an attempt, False for a terminal outcome.
         event_of: Extract the embedded a-MCP event that `verify_ledger` schema-checks.
+        principal_of: Extract the governed identity a record is attributed to, compared against
+            `expected_principal`. Defaults to None - a bare a-MCP event binds no identity (attributing a
+            record to a principal is the envelope's concern, not a-MCP's). A deployment that seals
+            records inside an identity-binding envelope (e.g. SEP-3004, whose protected core carries
+            `principal_id`) reads that identity here. Normalization (e.g. tenant hierarchy) belongs
+            here, so the comparison stays a strict equality.
     """
 
     id_of: Callable[[Mapping[str, object]], object] = _top_level_id
     is_attempt: Callable[[Mapping[str, object]], bool] = _top_level_is_attempt
     event_of: Callable[[Mapping[str, object]], object] = _identity_event
+    principal_of: Callable[[Mapping[str, object]], object] = _no_principal
     # end class
 
 
@@ -88,13 +103,18 @@ DEFAULT_ADAPTER = RecordAdapter()
 
 
 def verify_chain(
-    records: list[SealedRecord], anchored_digest: str | None = None, *, adapter: RecordAdapter = DEFAULT_ADAPTER
+    records: list[SealedRecord],
+    anchored_digest: str | None = None,
+    *,
+    adapter: RecordAdapter = DEFAULT_ADAPTER,
+    expected_principal: object | None = None,
 ) -> VerifyReport:
     """Verify chain integrity alone, independent of the event vocabulary (§8.3).
 
     Checks sequence order, previous-hash linkage, record-hash recomputation, attempt/outcome
-    correlation, and (with `anchored_digest`) the anchored-digest compare. This is the tamper-evidence
-    guarantee for any events sealed through `Ledger`; it never inspects the event schema.
+    correlation, the principal binding (when `expected_principal` is set), and (with `anchored_digest`)
+    the anchored-digest compare. This is the tamper-evidence guarantee for any events sealed through
+    `Ledger`; it never inspects the event schema.
 
     Args:
         records: The sealed records in append order (from a `Ledger` or reloaded storage).
@@ -102,6 +122,10 @@ def verify_chain(
         adapter: How to read the correlation key and attempt flag from each sealed record. Defaults to
             a bare top-level a-MCP event; inject accessors to correlate records sealed inside an
             envelope (e.g. SEP-3004).
+        expected_principal: When set, every record's `adapter.principal_of` is compared against it
+            (strict equality); a mismatch, or an absent identity, is flagged as `principal-mismatch`.
+            This is an SDK check, not an a-MCP anomaly: it detects a cross-partition transplant only
+            when records are sealed inside an identity-binding envelope. None (default) skips it.
 
     Returns:
         A report; `ok` is True only when no issues were found.
@@ -148,6 +172,18 @@ def verify_chain(
             )
             # end if
 
+        # Per-record, fail-closed (an absent identity != the expected one): a valid chain transplanted
+        # under the wrong principal passes hash + chain but fails this.
+        if expected_principal is not None and adapter.principal_of(event) != expected_principal:
+            issues.append(
+                VerifyIssue(
+                    seq=record.seq,
+                    kind=PRINCIPAL_MISMATCH,
+                    detail=f'record principal does not match expected {expected_principal!r}',
+                )
+            )
+            # end if
+
         prev_recomputed = recomputed
         # end for
 
@@ -165,7 +201,11 @@ def verify_chain(
 
 
 def verify_ledger(
-    records: list[SealedRecord], anchored_digest: str | None = None, *, adapter: RecordAdapter = DEFAULT_ADAPTER
+    records: list[SealedRecord],
+    anchored_digest: str | None = None,
+    *,
+    adapter: RecordAdapter = DEFAULT_ADAPTER,
+    expected_principal: object | None = None,
 ) -> VerifyReport:
     """Verify chain integrity and A-MCP event-schema conformance (§8.3 + §7.1).
 
@@ -180,11 +220,13 @@ def verify_ledger(
         adapter: How to read the correlation fields and extract the embedded a-MCP event. Defaults to a
             bare top-level a-MCP event; inject `event_of` to schema-check an event sealed inside an
             envelope (e.g. SEP-3004).
+        expected_principal: When set, each record's `adapter.principal_of` is compared against it, else
+            `principal-mismatch` (an SDK check); forwarded to `verify_chain`.
 
     Returns:
         A report; `ok` is True only when no issues were found.
     """
-    report = verify_chain(records, anchored_digest, adapter=adapter)
+    report = verify_chain(records, anchored_digest, adapter=adapter, expected_principal=expected_principal)
     schema_issues = [
         VerifyIssue(seq=record.seq, kind=reasons.SCHEMA_INVALID, detail=error)
         for record in records
