@@ -212,7 +212,7 @@ class AmcpSession:
     ) -> AuditedAction:
         """Create an audited action to use as `async with`.
 
-        The effect axis (`mutates`, `egress`) is declared explicitly per operation. Confidentiality
+        The effect axis (`mutates`, `egress`) is declared explicitly per operation (§4.2). Confidentiality
         is the tool's choice (§4.3): `disclose` records cleartext context, `commit` records a hash of
         the exact input; either, both, or neither may be given.
         """

@@ -157,7 +157,7 @@ def verify_chain(
             envelope (e.g. SEP-3004). A record whose `id_of` is None names no call and is exempt from
             attempt/outcome correlation.
         expected_principal: When set, every record's `adapter.principal_of` is compared against it
-            (strict equality); a mismatch, or an absent identity, is flagged as `principal-mismatch`.
+            as a value (§11.4); a mismatch, or an absent identity, is flagged as `principal-mismatch`.
             This is an SDK check, not an a-MCP anomaly: it detects a cross-partition transplant only
             when records are sealed inside an identity-binding envelope. None (default) skips it.
         witness_checker: Resolves a `host_key_id` and verifies a witness signature over the canonical
