@@ -25,6 +25,7 @@ from auditable_mcp.capability import (
 )
 from auditable_mcp.clock import Clock, SystemClock, now_iso
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
+from auditable_mcp.degradation import Posture, UnnegotiatedSessionError, transport_for
 from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash
 from auditable_mcp.host import AuditHost, IntegrityAnomaly, SignatureVerifier
 from auditable_mcp.in_process import InProcessTransport
@@ -122,7 +123,9 @@ __all__ = [
     'Ledger',
     'LedgerRepository',
     'Level',
+    'Posture',
     'NegotiationOutcome',
+    'UnnegotiatedSessionError',
     'NegotiationResult',
     'Outcome',
     'ReconcileAnomaly',
@@ -149,6 +152,7 @@ __all__ = [
     'bound_session',
     'canonicalize',
     'level_satisfies',
+    'transport_for',
     'witness_satisfies',
     'compute_record_hash',
     'current_session',
