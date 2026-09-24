@@ -24,6 +24,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # §7.1 makes atomic sealing a host conformance requirement, so the protocol machine needs a
+    # mutual-exclusion primitive. anyio supplies one without binding this SDK to a single async
+    # framework, the way asyncio.Lock would.
+    "anyio>=4",
     "pydantic>=2.7",
     "rfc8785>=0.1.4",
     "cryptography>=42",
@@ -34,7 +38,7 @@ dependencies = [
 # client and never imports boto3, so `[aws]` only provides the client for users who want it.
 [project.optional-dependencies]
 aws = ["boto3>=1.34"]
-mcp = ["mcp>=2.2", "anyio>=4"]
+mcp = ["mcp>=2.2"]
 
 [dependency-groups]
 dev = [

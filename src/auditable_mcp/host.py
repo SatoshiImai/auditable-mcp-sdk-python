@@ -18,6 +18,8 @@ import logging
 from dataclasses import dataclass, replace
 from typing import Final, Protocol
 
+import anyio
+
 from auditable_mcp import fields, reasons
 from auditable_mcp.canonical import has_unsafe_number
 from auditable_mcp.clock import Clock, SystemClock
@@ -151,6 +153,8 @@ class AuditHost:
         self._witness_signer = witness_signer
         self._repository = repository
         self._clock = clock if clock is not None else SystemClock()
+        # One lock per host is one lock per partition (§10.5); §7.1 constrains nothing across them.
+        self._lock = anyio.Lock()
         # Set False by the integrator when persistence is known to be down; also fail closed.
         self.persistence_available = True
         self._accepted_attempts: set[str] = set()
@@ -307,7 +311,21 @@ class AuditHost:
         # end def
 
     async def handle_attempt(self, event: dict[str, object]) -> AttemptResponse:
-        """Validate and, if durable, seal an attempt; otherwise reject or fail closed (§7.1)."""
+        """Validate and, if durable, seal an attempt; otherwise reject or fail closed (§7.1).
+
+        Held under the partition's lock: §7.1 requires the assignment of `seq` and `previous_hash`, the
+        seal, and the commit to be atomic with respect to every other record being sealed into the same
+        partition. Signing and persistence sit between those steps, so without the lock two attempts
+        read the same chain tail and take the same position - and the host answers `accept` to both.
+        The attempt `id`-uniqueness check (§7.1) is inside the same section for the same reason.
+        """
+        async with self._lock:
+            return await self._handle_attempt(event)
+            # end async with
+        # end def
+
+    async def _handle_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """The attempt path proper. The caller holds the lock."""
         error = first_validation_error(event)
         if error is not None:
             self._flag(_event_id(event), reasons.SCHEMA_INVALID, error)
@@ -357,7 +375,17 @@ class AuditHost:
         # end def
 
     async def handle_outcome(self, event: dict[str, object]) -> None:
-        """Seal a correlated outcome, or flag an uncorrelated one; drop invalid records (§7.2)."""
+        """Seal a correlated outcome, or flag an uncorrelated one; drop invalid records (§7.2).
+
+        Held under the same lock as `handle_attempt`: an outcome seals into the same chain (§8.3).
+        """
+        async with self._lock:
+            await self._handle_outcome(event)
+            # end async with
+        # end def
+
+    async def _handle_outcome(self, event: dict[str, object]) -> None:
+        """The outcome path proper. The caller holds the lock."""
         error = first_validation_error(event)
         if error is not None:
             self._flag(_event_id(event), reasons.SCHEMA_INVALID, error)

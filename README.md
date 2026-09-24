@@ -24,6 +24,8 @@ What this SDK does:
 - Ed25519 signing/verification, plus an AWS KMS adapter, behind an injection seam.
 - The durable-ledger lifecycle — seal-before-accept, fail-closed on a persistence error, and
   resume-after-restart — over a `LedgerRepository` interface you implement.
+- Atomic sealing (§7.1): one lock per partition, so concurrent attempts take distinct positions in
+  the chain rather than the same one.
 
 What it does not do (your concern, via adapters):
 
