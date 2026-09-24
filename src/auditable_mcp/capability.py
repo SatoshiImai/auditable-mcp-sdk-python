@@ -1,61 +1,110 @@
-"""Audit capability negotiation (§6.1).
+"""Audit capability negotiation (§6.1, §6.2).
 
-The capability object (`AuditCapability`, models.py) is exchanged bidirectionally during the MCP
-`initialize` phase: the host declares the level it requires, the tool declares the level it
-supports. Negotiation here is a local fit computation — a declaration's truthfulness is not verified
-(the host enforces the required level at runtime, §7), so this only answers "does the offer meet the
-requirement".
+Both parties declare the capability object under the `extensions` member of their MCP capabilities,
+keyed by the extension identifier. Negotiation is a local fit computation — a declaration's
+truthfulness is not verified — so this module only answers whether the two declarations fit, and on
+which axis they do not.
+
+The two axes run in opposite directions. On `level` the tool produces and the host requires, so a
+tool offering L2 satisfies an L1 host. On `witness` the host produces and the tool requires, so a
+host offering `host` satisfies a tool that requires `none`. Each party enforces the axis on which it
+is the one requiring.
+
+A host that declared nothing is not a failed negotiation but an absent one, which §6.2 governs
+differently: the tool must send no audit message at all and serve the call as an ordinary MCP tool.
+`NegotiationOutcome` keeps the two apart, because a caller that collapsed them would either brick
+the tool against ordinary hosts or paper over a real mismatch.
 """
 
 from dataclasses import dataclass
+from enum import StrEnum
 
-from auditable_mcp.models import AuditCapability, Level
+from auditable_mcp.models import AuditCapability, Level, Witness
 
 # L2 obligations are a superset of L1, so an L2 tool satisfies an L1 requirement (a safe downgrade),
 # while an L1-only tool does not satisfy an L2 requirement.
 _LEVEL_RANK = {Level.L1: 1, Level.L2: 2}
 
+# A host that signs satisfies a tool that requires a signature and one that does not; a host that
+# does not sign satisfies only the latter.
+_WITNESS_RANK = {Witness.NONE: 1, Witness.HOST: 2}
 
-@dataclass(frozen=True)
-class NegotiationResult:
-    """The outcome of a capability exchange: the requirement, the offer, and the fit."""
 
-    required: AuditCapability
-    offered: AuditCapability
-    satisfied: bool
-    version_match: bool
+class NegotiationOutcome(StrEnum):
+    """Why a session is or is not audit-negotiated (§6.2)."""
+
+    NEGOTIATED = 'negotiated'
+    # The peer declared no auditable-mcp capability. Not a mismatch: nothing was offered to compare.
+    UNDECLARED = 'undeclared'
+    MISMATCH = 'mismatch'
     # end class
 
 
-def capability_satisfies(offered: AuditCapability, required: AuditCapability) -> bool:
-    """Return True if `offered` supports at least the `required` level.
+@dataclass(frozen=True)
+class NegotiationResult:
+    """The outcome of a capability exchange, and which axis decided it."""
 
-    Args:
-        offered: The capability the tool declares it supports.
-        required: The capability the host requires.
+    tool: AuditCapability
+    host: AuditCapability | None
+    outcome: NegotiationOutcome
+    version_match: bool
+    level_fit: bool
+    witness_fit: bool
 
-    Returns:
-        True if the offered level is at least the required level.
-    """
-    return _LEVEL_RANK.get(offered.level, 0) >= _LEVEL_RANK.get(required.level, 0)
+    @property
+    def negotiated(self) -> bool:
+        """True only for an audit-negotiated session; §6.2 governs every other case."""
+        return self.outcome is NegotiationOutcome.NEGOTIATED
+        # end def
+
+    # end class
+
+
+def level_satisfies(tool: AuditCapability, host: AuditCapability) -> bool:
+    """Return True if the tool offers at least the level the host requires (§6.1)."""
+    return _LEVEL_RANK.get(tool.level, 0) >= _LEVEL_RANK.get(host.level, 0)
     # end def
 
 
-def negotiate(required: AuditCapability, offered: AuditCapability) -> NegotiationResult:
-    """Compare a tool's offered capability against a host requirement (§6.1).
+def witness_satisfies(host: AuditCapability, tool: AuditCapability) -> bool:
+    """Return True if the host provides at least the witness the tool requires (§5.2, §6.1)."""
+    return _WITNESS_RANK.get(host.witness, 0) >= _WITNESS_RANK.get(tool.witness, 0)
+    # end def
 
-    A `0.x` draft has no on-the-wire compatibility window, so `satisfied` requires both a level fit
-    and an exact `spec_version` match; `version_match` surfaces a version mismatch on its own.
+
+def negotiate(host: AuditCapability | None, tool: AuditCapability) -> NegotiationResult:
+    """Compare a host and a tool declaration (§6.1).
+
+    A `0.x` draft has no on-the-wire compatibility window, so a fit requires an exact `spec_version`
+    match as well as both axes; the per-axis flags surface which one failed.
 
     Args:
-        required: The capability the host requires.
-        offered: The capability the tool declares it supports.
+        host: The capability the host declared, or None if it declared no auditable-mcp extension.
+        tool: The capability the tool declares.
 
     Returns:
-        A result carrying both capabilities, whether the offer satisfies the requirement, and the
-        version match.
+        A result carrying both declarations, the outcome, and the per-axis fit.
     """
-    version_match = offered.spec_version == required.spec_version
-    satisfied = capability_satisfies(offered, required) and version_match
-    return NegotiationResult(required=required, offered=offered, satisfied=satisfied, version_match=version_match)
+    if host is None:
+        return NegotiationResult(
+            tool=tool,
+            host=None,
+            outcome=NegotiationOutcome.UNDECLARED,
+            version_match=False,
+            level_fit=False,
+            witness_fit=False,
+        )
+        # end if
+    version_match = tool.spec_version == host.spec_version
+    level_fit = level_satisfies(tool, host)
+    witness_fit = witness_satisfies(host, tool)
+    fits = version_match and level_fit and witness_fit
+    return NegotiationResult(
+        tool=tool,
+        host=host,
+        outcome=NegotiationOutcome.NEGOTIATED if fits else NegotiationOutcome.MISMATCH,
+        version_match=version_match,
+        level_fit=level_fit,
+        witness_fit=witness_fit,
+    )
     # end def

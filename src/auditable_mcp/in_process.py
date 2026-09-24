@@ -21,7 +21,7 @@ class InProcessTransport:
         # end def
 
     def negotiate(self, offered: AuditCapability) -> NegotiationResult:
-        """Compute the fit of the tool's offer against the endpoint's required capability (§6.1)."""
+        """Compute the fit against the embedded endpoint's declaration; it is never undeclared (§6.1)."""
         return negotiate(self._endpoint.capability, offered)
         # end def
 

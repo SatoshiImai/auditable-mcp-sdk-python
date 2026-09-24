@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from auditable_mcp.capability import negotiate
+from auditable_mcp.capability import NegotiationOutcome, negotiate
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.models import (
     SPEC_VERSION,
@@ -54,7 +54,7 @@ def test_l2_tool_satisfies_an_l1_host() -> None:
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE),
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
     )
-    assert result.satisfied
+    assert result.negotiated
     # end def
 
 
@@ -64,7 +64,7 @@ def test_l1_tool_does_not_satisfy_an_l2_host() -> None:
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE),
     )
-    assert not result.satisfied
+    assert not result.negotiated
     # end def
 
 
@@ -73,7 +73,7 @@ def test_equal_levels_are_satisfied() -> None:
     assert negotiate(
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
-    ).satisfied
+    ).negotiated
     # end def
 
 
@@ -94,7 +94,7 @@ def test_in_process_transport_negotiates_against_the_endpoint() -> None:
     transport = InProcessTransport(_RecordingEndpoint(level=Level.L2))
     assert not transport.negotiate(
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE)
-    ).satisfied
+    ).negotiated
     # end def
 
 
@@ -113,7 +113,7 @@ def test_version_mismatch_is_not_satisfied() -> None:
         AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE), offered
     )
     assert result.version_match is False
-    assert result.satisfied is False
+    assert result.negotiated is False
     # end def
 
 
@@ -144,4 +144,64 @@ def test_structural_conformance_to_the_protocols() -> None:
     endpoint = _RecordingEndpoint()
     assert isinstance(endpoint, AuditEndpoint)
     assert isinstance(InProcessTransport(endpoint), AuditTransport)
+    # end def
+
+
+def _cap(level: Level = Level.L1, witness: Witness = Witness.NONE) -> AuditCapability:
+    """A capability at the current spec version, varying only the axis under test."""
+    return AuditCapability(spec_version=SPEC_VERSION, level=level, attempt='request', witness=witness)
+    # end def
+
+
+def test_a_signing_host_satisfies_a_tool_that_requires_a_witness() -> None:
+    """The host produces on this axis, so its `host` meets a tool requiring `host` (§5.2, §6.1)."""
+    assert negotiate(_cap(witness=Witness.HOST), _cap(witness=Witness.HOST)).negotiated
+    # end def
+
+
+def test_a_non_signing_host_cannot_satisfy_a_tool_that_requires_a_witness() -> None:
+    """A witness shortfall fails the comparison at initialize rather than aborting every call (§6.1)."""
+    result = negotiate(_cap(witness=Witness.NONE), _cap(witness=Witness.HOST))
+    assert result.outcome is NegotiationOutcome.MISMATCH
+    assert result.witness_fit is False
+    assert result.level_fit is True
+    # end def
+
+
+def test_a_signing_host_satisfies_a_tool_that_requires_nothing() -> None:
+    """The witness axis runs opposite to level: the surplus is on the host side, and it is safe."""
+    result = negotiate(_cap(witness=Witness.HOST), _cap(witness=Witness.NONE))
+    assert result.negotiated
+    # end def
+
+
+def test_the_axes_run_in_opposite_directions() -> None:
+    """A surplus satisfies on each axis only from the side that produces it (§6.1)."""
+    # Level: the tool produces, so a tool surplus is safe and a host surplus is not.
+    assert negotiate(_cap(level=Level.L1), _cap(level=Level.L2)).negotiated
+    assert not negotiate(_cap(level=Level.L2), _cap(level=Level.L1)).negotiated
+    # Witness: the host produces, so the surplus that is safe sits on the other side.
+    assert negotiate(_cap(witness=Witness.HOST), _cap(witness=Witness.NONE)).negotiated
+    assert not negotiate(_cap(witness=Witness.NONE), _cap(witness=Witness.HOST)).negotiated
+    # end def
+
+
+def test_an_undeclared_host_is_not_a_mismatch() -> None:
+    """A host that declared nothing is an absent negotiation, which §6.2 governs differently."""
+    result = negotiate(None, _cap())
+    assert result.outcome is NegotiationOutcome.UNDECLARED
+    assert result.negotiated is False
+    assert result.host is None
+    # end def
+
+
+def test_every_unnegotiated_outcome_is_distinguishable() -> None:
+    """A caller that collapsed undeclared into mismatch would brick the tool against ordinary hosts."""
+    undeclared = negotiate(None, _cap())
+    mismatch = negotiate(
+        _cap(),
+        AuditCapability(spec_version='auditable-mcp/0.1', level=Level.L1, attempt='request', witness=Witness.NONE),
+    )
+    assert not undeclared.negotiated and not mismatch.negotiated
+    assert undeclared.outcome is not mismatch.outcome
     # end def

@@ -16,7 +16,13 @@ from auditable_mcp.canonical import (
     hash_canonical,
     sha256_hex,
 )
-from auditable_mcp.capability import NegotiationResult, capability_satisfies, negotiate
+from auditable_mcp.capability import (
+    NegotiationOutcome,
+    NegotiationResult,
+    level_satisfies,
+    negotiate,
+    witness_satisfies,
+)
 from auditable_mcp.clock import Clock, SystemClock, now_iso
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
 from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash
@@ -116,6 +122,7 @@ __all__ = [
     'Ledger',
     'LedgerRepository',
     'Level',
+    'NegotiationOutcome',
     'NegotiationResult',
     'Outcome',
     'ReconcileAnomaly',
@@ -141,7 +148,8 @@ __all__ = [
     'auditable_tool',
     'bound_session',
     'canonicalize',
-    'capability_satisfies',
+    'level_satisfies',
+    'witness_satisfies',
     'compute_record_hash',
     'current_session',
     'first_validation_error',

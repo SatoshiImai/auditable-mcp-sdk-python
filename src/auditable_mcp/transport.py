@@ -52,7 +52,7 @@ class AuditTransport(Protocol):
     """The tool-side transport: negotiate once, then send attempts (blocking) and outcomes."""
 
     def negotiate(self, offered: AuditCapability) -> NegotiationResult:
-        """Present the tool's offered capability and learn the host requirement and fit (§6.1)."""
+        """Present the tool's own capability and learn the host's declaration and the fit (§6.1, §6.2)."""
         ...
 
     async def send_attempt(self, event: dict[str, object]) -> AttemptResponse:
