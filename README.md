@@ -17,6 +17,8 @@ What this SDK does:
 - The record-hash preimage and the per-partition hash chain.
 - The audit-before-act tool lifecycle and the host audit subsystem (Level 1 and Level 2).
 - Capability negotiation on both axes, and the §6.2 postures for a session that was not negotiated.
+- The MCP wire binding: `audit/attempt` and `audit/outcome` on a real MCP connection, and the
+  `initialize` declaration on both sides.
 - The witness: a host that declares it signs, signing what it sealed, and the tool and verifier
   checking it.
 - Ed25519 signing/verification, plus an AWS KMS adapter, behind an injection seam.
@@ -28,8 +30,9 @@ What it does not do (your concern, via adapters):
 - No storage backend. The SDK defines the `LedgerRepository` interface (with an in-memory
   implementation for tests); you implement it over your store. `SealedRecord` carries
   `to_dict`/`from_dict`.
-- No transport lock-in. The core defines an abstract transport and bundles the in-process one; you
-  wire the `AuditTransport` seam over MCP, importing the official `mcp` package alongside this one.
+- No transport lock-in. The core defines an abstract transport and bundles the in-process one. The
+  MCP wire binding is a separate, optional subpackage (`auditable-mcp-sdk[mcp]`); nothing else in
+  the SDK imports the official `mcp` package.
 - No tool business logic, and no in-process private keys in production — sign through a KMS/HSM.
 
 ## Status
@@ -40,6 +43,7 @@ Alpha, tracking `auditable-mcp/0.3`. The public API is unstable while the spec i
 
 ```bash
 pip install auditable-mcp-sdk            # core
+pip install "auditable-mcp-sdk[mcp]"     # + the MCP wire binding (official mcp SDK)
 pip install "auditable-mcp-sdk[aws]"     # + AWS KMS adapter (boto3)
 ```
 
@@ -248,6 +252,56 @@ if not report.ok:
         log.error("ledger issue at seq=%s: %s (%s)", issue.seq, issue.kind, issue.detail)
 ```
 
+### 8. Over a real MCP connection
+
+Neither official MCP SDK dispatches a method outside its own fixed request union, so neither can
+deliver `audit/attempt` or `audit/outcome` to a handler. They do not have to: the audit wire is
+ordinary JSON-RPC on the connection MCP already holds, so the binding sits between the session and
+the transport streams and hands the session a pair of its own. Everything that is not an audit frame
+passes through untouched, and the session sees exactly the MCP it would have seen without this
+extension.
+
+A tool (an MCP server):
+
+```python
+from auditable_mcp import transport_for
+from auditable_mcp.mcp import McpAuditTransport
+
+TOOL_CAPABILITY = AuditCapability(
+    spec_version=SPEC_VERSION, level=Level.L1, attempt="request", witness=Witness.NONE
+)
+
+async with stdio_server() as (read_stream, write_stream):
+    async with McpAuditTransport(read_stream, write_stream, TOOL_CAPABILITY) as audit:
+        # the seam declares the extension in the `initialize` result and reads the host's back
+        await server.run(audit.read_stream, audit.write_stream, options)
+```
+
+Inside the tool handler, pick the transport §6.2 permits for this session and run the action:
+
+```python
+transport = transport_for(audit.negotiate(TOOL_CAPABILITY), negotiated=audit, fallback=self_hosted)
+session = AmcpSession(transport, call_id)
+async with session.action("db.read", target, mutates=False, egress=False):
+    ...
+```
+
+A host (an MCP client) wraps its own streams around its `AuditHost`, and its declaration is the
+host's requirement itself — there is no second copy to drift:
+
+```python
+from auditable_mcp.mcp import McpAuditReceiver, capability_of
+
+async with McpAuditReceiver(read_stream, write_stream, host) as audit:
+    async with ClientSession(audit.read_stream, audit.write_stream) as session:
+        result = await session.initialize()
+        tool_capability = capability_of(result.capabilities)   # None = an ordinary MCP tool
+```
+
+Three §6 obligations live in this module and nowhere else: an attempt is never batched, the wait for
+a decision is bounded and fails closed when it expires, and nothing at all is sent in a session that
+was not audit-negotiated.
+
 ## Conformance
 
 The normative JSON Schema and golden vectors are vendored under [`spec/`](spec/) from the
@@ -275,6 +329,7 @@ make test          # includes the cross-language conformance vectors
 | `src/auditable_mcp/degradation.py`    | §6.2 postures for a session that was not negotiated             |
 | `src/auditable_mcp/transport.py`      | tool/host transport seams + response builders                   |
 | `src/auditable_mcp/in_process.py`     | in-process transport                                            |
+| `src/auditable_mcp/mcp/`              | §6 wire binding over MCP (optional: `[mcp]`)                    |
 | `src/auditable_mcp/clock.py`          | ISO-8601 timestamp source (`Clock` protocol)                    |
 | `src/auditable_mcp/session.py`        | audit-before-act async session (the tool-side core)             |
 | `src/auditable_mcp/decorator.py`      | thin `@auditable_tool` wrapper                                  |

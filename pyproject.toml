@@ -29,13 +29,12 @@ dependencies = [
     "cryptography>=42",
 ]
 
-# The core is a pure protocol machine with no transport dependency. There is no bundled MCP binding:
-# the MCP SDK has no lifecycle hook for receiving custom methods (its receive loop rejects any method
-# outside its fixed request union), so an integrator wires the `AuditTransport` seam over MCP directly,
-# importing the official `mcp` package alongside this one. The KMS adapter takes an injected client and
-# never imports boto3, so `[aws]` only provides the client for users who want it.
+# The core is a pure protocol machine with no transport dependency; both extras are opt-in, and
+# nothing outside `auditable_mcp.mcp` imports the MCP package. The KMS adapter takes an injected
+# client and never imports boto3, so `[aws]` only provides the client for users who want it.
 [project.optional-dependencies]
 aws = ["boto3>=1.34"]
+mcp = ["mcp>=2.2", "anyio>=4"]
 
 [dependency-groups]
 dev = [

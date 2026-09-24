@@ -28,6 +28,13 @@ Breaking, tracking spec `auditable-mcp/0.3`.
   when absent, so an unwitnessed record persists byte-identically to before.
 - **`degradation.transport_for`** picks what §6.2 permits for a session that was not negotiated, and
   refuses to return a transport for the third, non-conformant posture.
+- **The MCP wire binding** (`auditable_mcp.mcp`, optional extra `[mcp]`). `McpAuditTransport` (tool)
+  and `McpAuditReceiver` (host) carry `audit/attempt` and `audit/outcome` on a real MCP connection by
+  sitting between the session and the transport streams; neither official SDK dispatches a method
+  outside its own request union, and neither has to. The seams also declare this extension on
+  `initialize` and read the peer's declaration back, which the Python MCP client has no other way to
+  do. Three §6 obligations are enforced only here: an attempt is never batched, the wait for a
+  decision is bounded and fails closed, and an unnegotiated session carries no audit message at all.
 - **`VerifyReport.unchecked` and `.complete`** (§11.4). A verifier without the out-of-band registry
   performs no witness determination, and saying so is not optional even though the check is.
 - `reasons.HOST_UNWITNESSED` / `HOST_SIGNATURE_INVALID`; `hashing.witness_payload`;
