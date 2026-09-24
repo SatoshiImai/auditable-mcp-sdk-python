@@ -13,6 +13,7 @@ different key is forbidden — rotation uses a fresh `key_id`), and revocation i
 from dataclasses import dataclass
 from enum import StrEnum
 
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
@@ -53,6 +54,19 @@ class RegisteredKey:
     algorithm: SignatureAlgorithm
     public_key: PublicKey
     # end class
+
+
+def _same_key(left: PublicKey, right: PublicKey) -> bool:
+    """Return True if the two keys are the same public key.
+
+    Compared by their encoded bytes, not by object identity: a deployment that re-reads its registry
+    from disk holds a different object for the same key, and re-registering it is the idempotent case
+    §10.9 permits rather than the different-key case it forbids.
+    """
+    encoding = serialization.Encoding.DER
+    form = serialization.PublicFormat.SubjectPublicKeyInfo
+    return left.public_bytes(encoding, form) == right.public_bytes(encoding, form)
+    # end def
 
 
 def generate_tool_key(key_id: str) -> ToolKey:
@@ -109,7 +123,7 @@ class KeyRegistry:
             raise ValueError(f'a {algorithm} entry binds a {expected}, not a {type(public_key).__name__} (§5.1)')
             # end if
         existing = self._keys.get(key_id)
-        if existing is not None and (existing.algorithm != algorithm or existing.public_key is not public_key):
+        if existing is not None and (existing.algorithm != algorithm or not _same_key(existing.public_key, public_key)):
             raise ValueError(f'key_id {key_id!r} is already registered with a different key (§10.9)')
             # end if
         self._keys[key_id] = RegisteredKey(algorithm=algorithm, public_key=public_key)

@@ -38,6 +38,10 @@ Breaking, tracking spec `auditable-mcp/0.3`.
 - **Every abort path emits best-effort.** Only the transport-fault path did; on the other four a
   failure while recording the abort replaced the abort, so the caller saw the second failure instead
   of why the tool stopped (§7.2).
+- **A registry compares keys, not objects.** Re-registering a `key_id` with the same key read again
+  - from disk, from a reloaded registry - was refused as a different key, because the comparison was
+  by object identity. §10.9 forbids binding a `key_id` to a *different* key; the same one held twice
+  is the idempotent case it permits.
 - **`AmcpUsageError`** separates an integrator error from a transport fault. The session's
   fail-closed catch was converting the MCP binding's own refusals - an unnegotiated send, a
   handshake not seen - into `host-unavailable`, filing an `aborted` record that blamed the host for

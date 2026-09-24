@@ -24,6 +24,7 @@ from mcp.types import (
     Tool,
     ToolsCapability,
 )
+from pydantic import BaseModel
 
 from auditable_mcp.degradation import transport_for
 from auditable_mcp.host import AuditHost
@@ -918,9 +919,25 @@ class TestTheSeamsEdges:
             # end async with
         # end def
 
-    def test_a_declaration_held_as_a_model_reads_the_same_as_one_on_the_wire(self) -> None:
-        """A typed `ServerCapabilities` holds the settings object as a model, not a mapping (§6.1)."""
-        assert capability_of(ServerCapabilities(extensions={EXTENSION_ID: TOOL_CAPABILITY})) == TOOL_CAPABILITY
+    def test_a_declaration_held_as_a_foreign_model_reads_the_same_as_one_on_the_wire(self) -> None:
+        """A peer's own types may hold the settings object as their model, not as a mapping (§6.1).
+
+        Its own model validates from itself, so the interesting case is a stranger's: this SDK reads
+        the declaration a peer built with its own types, which is what [SEP-2133] leaves open.
+        """
+
+        class _TheirCapability(BaseModel):
+            """Some other implementation's model of the same settings object."""
+
+            spec_version: str
+            level: str
+            attempt: str
+            witness: str
+
+            # end class
+
+        declared = _TheirCapability(spec_version=SPEC_VERSION, level='L1', attempt='request', witness='none')
+        assert capability_of(ServerCapabilities(extensions={EXTENSION_ID: declared})) == TOOL_CAPABILITY
         # end def
 
     # end class

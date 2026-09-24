@@ -3,7 +3,7 @@
 import base64
 
 import pytest
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
@@ -399,4 +399,35 @@ def test_the_offline_signature_checker_matches_the_host_side_verdict() -> None:
     signed_event = sign_event(_event(), 'k1', 0, key.private_key)
     assert checker.check(signed_event) is True
     assert checker.check({**signed_event, 'signature': base64.b64encode(b'\x00' * 64).decode('ascii')}) is False
+    # end def
+
+
+def test_re_registering_the_same_key_read_again_is_idempotent() -> None:
+    """§10.9 forbids binding a `key_id` to a different key, not to the same one held twice.
+
+    A deployment that reloads its registry from disk holds a new object for the same key, so
+    comparing by identity would refuse the case the rule permits.
+    """
+    registry = KeyRegistry()
+    key = generate_tool_key('k1')
+    encoded = key.public_key.public_bytes(
+        encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    reloaded = serialization.load_der_public_key(encoded)
+    registry.register('k1', key.public_key, SignatureAlgorithm.ED25519)
+    registry.register('k1', reloaded, SignatureAlgorithm.ED25519)  # type: ignore[arg-type]
+    assert registry.get('k1') is not None
+    with pytest.raises(ValueError, match='§10.9'):
+        registry.register('k1', generate_tool_key('other').public_key, SignatureAlgorithm.ED25519)
+        # end with
+    # end def
+
+
+def test_the_same_p256_point_in_two_encodings_is_the_same_key() -> None:
+    """§5.1 admits both SEC1 forms, so the compressed and uncompressed point are one key (§10.9)."""
+    registry = KeyRegistry(KeyRole.HOST)
+    public_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+    registry.register('h1', public_key, SignatureAlgorithm.ECDSA_P256_SHA256)
+    registry.register('h1', public_key, SignatureAlgorithm.ECDSA_P256_SHA256)
+    assert registry.get('h1') is not None
     # end def
