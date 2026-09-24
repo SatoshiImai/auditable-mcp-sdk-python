@@ -5,7 +5,7 @@ import pytest
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger
-from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Level, Witness
+from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Level, TargetResource, Witness
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
 from auditable_mcp.transport import accept, reject, unavailable
 from auditable_mcp.verify import verify_ledger
@@ -294,3 +294,83 @@ def test_current_session_requires_binding() -> None:
         current_session()
         # end with
     # end def
+
+
+class _FaultyTransport:
+    """A transport whose send raises, as a wire transport can (§11.3)."""
+
+    def __init__(self, *, outcome_also_fails: bool = False) -> None:
+        """Record what was attempted, and choose whether the outcome channel fails too."""
+        self.outcomes: list[dict[str, object]] = []
+        self._outcome_also_fails = outcome_also_fails
+        # end def
+
+    def negotiate(self, offered: AuditCapability) -> object:
+        """Never used by these tests."""
+        raise NotImplementedError
+        # end def
+
+    async def send_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Fail the way a broken wire does, with an error this SDK does not define."""
+        raise ConnectionResetError('the wire went away')
+        # end def
+
+    async def send_outcome(self, event: dict[str, object]) -> None:
+        """Record the outcome, or fail again if the test asked for it."""
+        if self._outcome_also_fails:
+            raise ConnectionResetError('the wire is still gone')
+            # end if
+        self.outcomes.append(event)
+        # end def
+
+    # end class
+
+
+class TestATransportFault:
+    """§6/§11.3: a throw is a failure to record and is handled exactly as `unavailable`."""
+
+    @pytest.mark.asyncio
+    async def test_it_aborts_rather_than_escaping_as_the_transport_s_own_error(self) -> None:
+        """A caller branching on the audit outcome would never see a ConnectionResetError."""
+        transport = _FaultyTransport()
+        session = AmcpSession(transport, 'call-1', deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError) as aborted:
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pytest.fail('the action ran although nothing recorded it')
+                # end async with
+            # end with
+        assert aborted.value.reason == 'host-unavailable'
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_it_leaves_an_aborted_record_of_the_action_that_did_not_happen(self) -> None:
+        """§11.3 Abort Signaling: the aborted outcome carries the Tier-1 reason (§7.6)."""
+        transport = _FaultyTransport()
+        session = AmcpSession(transport, 'call-1', deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pass
+                # end async with
+            # end with
+        assert [event['outcome'] for event in transport.outcomes] == ['aborted']
+        assert transport.outcomes[0]['reason'] == 'host-unavailable'
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_transport_that_fails_twice_does_not_mask_the_abort(self) -> None:
+        """The abort is what the caller must see; the second failure is not its replacement."""
+        session = AmcpSession(_FaultyTransport(outcome_also_fails=True), 'call-1', deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pass
+                # end async with
+            # end with
+        # end def
+
+    # end class

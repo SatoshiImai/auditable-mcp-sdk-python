@@ -15,6 +15,7 @@ Level 1 and Level 2 emission are identical; Level 2 only adds the signer.
 
 from __future__ import annotations
 
+import logging
 from types import TracebackType
 from typing import Protocol
 from uuid import uuid4
@@ -88,6 +89,9 @@ class SystemDeps:
         # end def
 
     # end class
+
+
+_logger = logging.getLogger(__name__)
 
 
 class AmcpAbortedError(Exception):
@@ -250,10 +254,30 @@ class AuditedAction:
         await self._session._transport.send_outcome(await self._build(Outcome.ABORTED, reason))
         # end def
 
+    async def _emit_aborted_best_effort(self, reason: AbortReason) -> None:
+        """Emit the aborted outcome without letting a broken transport mask the abort itself (§7.2)."""
+        try:
+            await self._emit_aborted(reason)
+        except Exception:
+            # The transport that just failed may fail again; the abort is what the caller must see.
+            _logger.error('could not emit the aborted outcome after a transport fault (reason=%s)', reason)
+            # end try
+        # end def
+
     async def __aenter__(self) -> AuditedAction:
         """Emit the attempt, await accept, run Polluted Stop; abort (and raise) unless cleared."""
         attempt = await self._build(Outcome.ATTEMPTED)
-        response = await self._session._transport.send_attempt(attempt)
+        try:
+            response = await self._session._transport.send_attempt(attempt)
+        except Exception as error:
+            # §6/§11.3: a transport fault (as against an `unavailable` result) is a failure to record
+            # and is handled exactly as `unavailable` - fail closed. The catch is broad on purpose:
+            # the transport is injected and its error types are not this SDK's to know, and letting
+            # one escape would leave the caller with an exception that is not an audit outcome and no
+            # `aborted` record of the action that did not happen.
+            await self._emit_aborted_best_effort(reasons.HOST_UNAVAILABLE)
+            raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_UNAVAILABLE) from error
+            # end try
 
         if not isinstance(response, AcceptResponse):
             # reject (invalid) or unavailable (not persisted): do not act; signal aborted (§11.3).
