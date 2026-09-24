@@ -9,6 +9,8 @@ from auditable_mcp.l2.reconcile import BoundaryObserver, EgressObservation, Reco
 from auditable_mcp.l2.signing import Ed25519Signer, Ed25519WitnessSigner, sign_event, signature_payload
 from auditable_mcp.l2.verification import (
     KeyRegistryVerifier,
+    WitnessRegistryVerifier,
+    verify_detached_signature,
     verify_ecdsa_signature,
     verify_ed25519_signature,
 )
@@ -20,6 +22,7 @@ __all__ = [
     'EgressObservation',
     'KeyRegistry',
     'KeyRegistryVerifier',
+    'WitnessRegistryVerifier',
     'ReconcileAnomaly',
     'RegisteredKey',
     'SignatureAlgorithm',
@@ -28,6 +31,7 @@ __all__ = [
     'reconcile',
     'sign_event',
     'signature_payload',
+    'verify_detached_signature',
     'verify_ecdsa_signature',
     'verify_ed25519_signature',
 ]

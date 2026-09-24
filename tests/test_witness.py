@@ -7,11 +7,41 @@ from cryptography.exceptions import InvalidSignature
 
 from auditable_mcp.hashing import witness_payload
 from auditable_mcp.host import AuditHost
-from auditable_mcp.l2 import Ed25519WitnessSigner, generate_tool_key
+from auditable_mcp.in_process import InProcessTransport
+from auditable_mcp.l2 import (
+    Ed25519WitnessSigner,
+    KeyRegistry,
+    SignatureAlgorithm,
+    WitnessRegistryVerifier,
+    generate_tool_key,
+)
 from auditable_mcp.ledger import SealedRecord
-from auditable_mcp.models import SPEC_VERSION, AcceptResponse, AuditCapability, Level, Witness
+from auditable_mcp.models import SPEC_VERSION, AcceptResponse, AuditCapability, Level, TargetResource, Witness
+from auditable_mcp.session import AmcpAbortedError, AmcpSession
 
 _HOST_KEY_ID = 'host-key-2026'
+
+
+class _FixedDeps:
+    """Deterministic id/time source for reproducible tool-side events."""
+
+    def __init__(self) -> None:
+        """Start the id counter at zero."""
+        self._n = 0
+        # end def
+
+    def new_id(self) -> str:
+        """Return the next deterministic UUID-shaped id."""
+        self._n += 1
+        return f'00000000-0000-4000-8000-{self._n:012x}'
+        # end def
+
+    def now(self) -> str:
+        """Return a fixed valid ISO-8601 timestamp."""
+        return '2026-07-15T00:00:01.000Z'
+        # end def
+
+    # end class
 
 
 class _Clock:
@@ -174,4 +204,212 @@ def test_a_witnessed_record_round_trips_through_persistence() -> None:
         host_key_id=_HOST_KEY_ID,
     )
     assert SealedRecord.from_dict(record.to_dict()) == record
+    # end def
+
+
+class _CannedEndpoint:
+    """A host that answers every attempt with one crafted response, so §7.2's order can be exercised."""
+
+    def __init__(self, response: AcceptResponse) -> None:
+        """Configure the canned accept and start an empty outcome log."""
+        self._response = response
+        self.outcomes: list[dict[str, object]] = []
+        # end def
+
+    @property
+    def capability(self) -> AuditCapability:
+        """A declaration the in-process transport can negotiate against."""
+        return _capability(Witness.HOST)
+        # end def
+
+    async def handle_attempt(self, event: dict[str, object]) -> AcceptResponse:
+        """Return the canned accept."""
+        return self._response
+        # end def
+
+    async def handle_outcome(self, event: dict[str, object]) -> None:
+        """Record the outcome the tool emitted."""
+        self.outcomes.append(event)
+        # end def
+
+    # end class
+
+
+def _canned(*, host_signature: str | None = None, host_key_id: str | None = None, record_hash: str = 'a' * 64):
+    """An accept whose fields a test controls, including a deliberately wrong record hash."""
+    return AcceptResponse(
+        seq=0,
+        record_hash=record_hash,
+        host_ts='2026-07-15T00:00:02.000Z',
+        previous_hash='0' * 64,
+        host_signature=host_signature,
+        host_key_id=host_key_id,
+    )
+    # end def
+
+
+async def _run(session: AmcpSession) -> None:
+    """Drive one audited action, letting AmcpAbortedError escape."""
+    async with session.action('db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False):
+        pass
+        # end async with
+    # end def
+
+
+def _registry_for(key_id: str, public_key: object) -> WitnessRegistryVerifier:
+    """A witness verifier holding one host key, as an onboarded registry would."""
+    registry = KeyRegistry()
+    registry.register(key_id, public_key, SignatureAlgorithm.ED25519)  # type: ignore[arg-type]
+    return WitnessRegistryVerifier(registry)
+    # end def
+
+
+def test_requiring_a_witness_without_a_verifier_is_refused() -> None:
+    """Requiring one without the means to check it would accept any bytes as a signature (§11.3)."""
+    endpoint = _CannedEndpoint(_canned())
+    with pytest.raises(ValueError, match='WitnessVerifier'):
+        AmcpSession(InProcessTransport(endpoint), 'call-1', require_witness=True)
+        # end with
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_required_witness_that_is_absent_aborts_host_unwitnessed() -> None:
+    """An accept carrying no signature fails a tool that requires one (§7.2)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    endpoint = _CannedEndpoint(_canned())
+    session = AmcpSession(
+        InProcessTransport(endpoint),
+        'call-1',
+        deps=_FixedDeps(),
+        witness_verifier=_registry_for(_HOST_KEY_ID, key.private_key.public_key()),
+        require_witness=True,
+    )
+    with pytest.raises(AmcpAbortedError):
+        await _run(session)
+        # end with
+    assert [outcome['reason'] for outcome in endpoint.outcomes] == ['host-unwitnessed']
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_signature_that_does_not_verify_aborts_host_signature_invalid() -> None:
+    """A present signature the tool checked and rejected stops the action (§7.2)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    endpoint = _CannedEndpoint(_canned(host_signature='ZmFrZQ==', host_key_id=_HOST_KEY_ID))
+    session = AmcpSession(
+        InProcessTransport(endpoint),
+        'call-1',
+        deps=_FixedDeps(),
+        witness_verifier=_registry_for(_HOST_KEY_ID, key.private_key.public_key()),
+    )
+    with pytest.raises(AmcpAbortedError):
+        await _run(session)
+        # end with
+    assert [outcome['reason'] for outcome in endpoint.outcomes] == ['host-signature-invalid']
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_tool_that_checked_must_act_on_the_result_even_without_requiring_one() -> None:
+    """`require_witness` is False here; having verified, the tool still applies the bullet (§7.2)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    endpoint = _CannedEndpoint(_canned(host_signature='ZmFrZQ==', host_key_id=_HOST_KEY_ID))
+    session = AmcpSession(
+        InProcessTransport(endpoint),
+        'call-1',
+        deps=_FixedDeps(),
+        witness_verifier=_registry_for(_HOST_KEY_ID, key.private_key.public_key()),
+        require_witness=False,
+    )
+    with pytest.raises(AmcpAbortedError):
+        await _run(session)
+        # end with
+    assert endpoint.outcomes[0]['reason'] == 'host-signature-invalid'
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_host_key_does_not_establish_the_witness() -> None:
+    """A host_key_id with no current entry - never registered, or revoked - fails (§10.9)."""
+    other = generate_tool_key('another-host')
+    endpoint = _CannedEndpoint(_canned(host_signature='ZmFrZQ==', host_key_id=_HOST_KEY_ID))
+    session = AmcpSession(
+        InProcessTransport(endpoint),
+        'call-1',
+        deps=_FixedDeps(),
+        witness_verifier=_registry_for('another-host', other.private_key.public_key()),
+    )
+    with pytest.raises(AmcpAbortedError):
+        await _run(session)
+        # end with
+    assert endpoint.outcomes[0]['reason'] == 'host-signature-invalid'
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_an_absent_witness_precedes_a_hash_mismatch() -> None:
+    """Both conditions hold; the sealed reason is the first that applies, not the last (§7.2)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    # The canned record_hash cannot match what the tool computes, so Polluted Stop would fire too.
+    endpoint = _CannedEndpoint(_canned())
+    session = AmcpSession(
+        InProcessTransport(endpoint),
+        'call-1',
+        deps=_FixedDeps(),
+        polluted_stop=True,
+        witness_verifier=_registry_for(_HOST_KEY_ID, key.private_key.public_key()),
+        require_witness=True,
+    )
+    with pytest.raises(AmcpAbortedError):
+        await _run(session)
+        # end with
+    assert endpoint.outcomes[0]['reason'] == 'host-unwitnessed'
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_an_invalid_witness_precedes_a_hash_mismatch() -> None:
+    """A response is authenticated before its contents are interpreted (§7.2)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    endpoint = _CannedEndpoint(_canned(host_signature='ZmFrZQ==', host_key_id=_HOST_KEY_ID))
+    session = AmcpSession(
+        InProcessTransport(endpoint),
+        'call-1',
+        deps=_FixedDeps(),
+        polluted_stop=True,
+        witness_verifier=_registry_for(_HOST_KEY_ID, key.private_key.public_key()),
+        require_witness=True,
+    )
+    with pytest.raises(AmcpAbortedError):
+        await _run(session)
+        # end with
+    assert endpoint.outcomes[0]['reason'] == 'host-signature-invalid'
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_real_signing_host_and_a_requiring_tool_complete_the_action() -> None:
+    """End to end: the host signs, the tool verifies against the registry, and the body runs (§7.1)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    host = AuditHost(
+        'tenant-a',
+        _capability(Witness.HOST),
+        witness_signer=Ed25519WitnessSigner(key.key_id, key.private_key),
+        clock=_Clock(),
+    )
+    session = AmcpSession(
+        InProcessTransport(host),
+        'call-1',
+        deps=_FixedDeps(),
+        polluted_stop=True,
+        witness_verifier=_registry_for(_HOST_KEY_ID, key.private_key.public_key()),
+        require_witness=True,
+    )
+    ran = False
+    async with session.action('db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False):
+        ran = True
+        # end async with
+    assert ran
+    assert all(record.host_signature is not None for record in host.records())
     # end def

@@ -22,7 +22,7 @@ from uuid import uuid4
 from auditable_mcp import reasons
 from auditable_mcp.canonical import hash_canonical
 from auditable_mcp.clock import Clock, now_iso
-from auditable_mcp.hashing import compute_record_hash
+from auditable_mcp.hashing import compute_record_hash, witness_payload
 from auditable_mcp.models import (
     SPEC_VERSION,
     AbortReason,
@@ -44,6 +44,21 @@ class EventSigner(Protocol):
 
     async def sign(self, event: dict[str, object]) -> dict[str, object]:
         """Return the signed event."""
+        ...
+
+    # end class
+
+
+class WitnessVerifier(Protocol):
+    """Verifies a host's witness signature over the accept's host-assigned fields (§5.2, §7.1).
+
+    The payload is supplied already canonical, so a verifier resolves the key and does cryptography
+    only. A `host_key_id` with no current registry entry - never registered, or revoked - returns
+    False: the witness is not established either way (§10.9).
+    """
+
+    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool:
+        """Return True if the signature verifies against the registered host key."""
         ...
 
     # end class
@@ -104,17 +119,33 @@ class AmcpSession:
         signer: EventSigner | None = None,
         deps: Deps | None = None,
         polluted_stop: bool | None = None,
+        witness_verifier: WitnessVerifier | None = None,
+        require_witness: bool = False,
     ) -> None:
-        """Bind the session to a transport, parent call id, id/time deps, and optional L2 signer.
+        """Bind the session to a transport, parent call id, id/time deps, and the optional seams.
 
         Polluted Stop runs whenever a signer is present (Level 2 MUST, §11.3); under Level 1 it is
         optional and off by default. Pass `polluted_stop=True` to opt an L1 tool into the check.
+
+        A `witness_verifier` makes the tool check any witness signature an accept carries, whether or
+        not it requires one - having checked, it must act on the result (§7.2). `require_witness`
+        additionally aborts an accept that carries none.
+
+        Raises:
+            ValueError: If `require_witness` is set without a `witness_verifier`.
         """
+        # Requiring a witness without the means to check one would accept any bytes as a signature,
+        # which is worse than not requiring it at all (§11.3 Witness Enforcement).
+        if require_witness and witness_verifier is None:
+            raise ValueError('require_witness needs a WitnessVerifier')
+            # end if
         self._transport = transport
         self._call_id = call_id
         self._signer = signer
         self._deps = deps if deps is not None else SystemDeps()
         self._polluted_stop = signer is not None if polluted_stop is None else polluted_stop
+        self._witness_verifier = witness_verifier
+        self._require_witness = require_witness
         # end def
 
     async def _stamp(self, event: dict[str, object]) -> dict[str, object]:
@@ -225,6 +256,25 @@ class AuditedAction:
             )
             await self._emit_aborted(reason)
             raise AmcpAbortedError(self._action_type, self._target.ref, reason)
+            # end if
+
+        # §7.2 evaluates in precedence order: the response's status above, then the witness signature
+        # that authenticates the host-assigned fields, then the hash computed over them. The reason is
+        # sealed into the ledger and compared across implementations, so the order is not incidental.
+        if self._session._require_witness and response.host_signature is None:
+            await self._emit_aborted(reasons.HOST_UNWITNESSED)
+            raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_UNWITNESSED)
+            # end if
+        if response.host_signature is not None and self._session._witness_verifier is not None:
+            assert response.host_key_id is not None  # paired by AcceptResponse (§7.1)
+            payload = witness_payload(response.seq, response.host_ts, response.previous_hash, response.record_hash)
+            verified = await self._session._witness_verifier.verify(
+                response.host_key_id, response.host_signature, payload
+            )
+            if not verified:
+                await self._emit_aborted(reasons.HOST_SIGNATURE_INVALID)
+                raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_SIGNATURE_INVALID)
+                # end if
             # end if
 
         # Polluted Stop (§7.2): recompute the record hash over the exact attempt bytes; a mismatch

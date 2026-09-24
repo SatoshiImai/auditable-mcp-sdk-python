@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
 from auditable_mcp import fields, reasons
-from auditable_mcp.l2.keys import KeyRegistry, SignatureAlgorithm
+from auditable_mcp.l2.keys import KeyRegistry, RegisteredKey, SignatureAlgorithm
 from auditable_mcp.l2.signing import signature_payload
 from auditable_mcp.models import RejectReason
 
@@ -28,9 +28,8 @@ from auditable_mcp.models import RejectReason
 _P256_RAW_SIGNATURE_LEN = 64
 
 
-def _decode_signature(event: dict[str, object]) -> bytes | None:
-    """Return the event's decoded base64 signature, or None if absent or malformed."""
-    signature_b64 = event.get(fields.SIGNATURE)
+def _decode_b64(signature_b64: object) -> bytes | None:
+    """Return the decoded standard-base64 signature, or None if absent or malformed."""
     if not isinstance(signature_b64, str):
         return None
         # end if
@@ -39,6 +38,49 @@ def _decode_signature(event: dict[str, object]) -> bytes | None:
     except (binascii.Error, ValueError):
         return None
         # end try
+    # end def
+
+
+def _decode_signature(event: dict[str, object]) -> bytes | None:
+    """Return the event's decoded base64 signature, or None if absent or malformed."""
+    return _decode_b64(event.get(fields.SIGNATURE))
+    # end def
+
+
+def verify_detached_signature(
+    payload: bytes,
+    signature_b64: object,
+    entry: RegisteredKey,
+    hash_algorithm: hashes.HashAlgorithm | None = None,
+) -> bool:
+    """Return True if a detached base64 signature over already-canonical `payload` verifies.
+
+    Unlike the event-level helpers above, the payload is supplied rather than derived, so this serves
+    a signature whose preimage is not an event - the witness signature over the host-assigned fields
+    (§7.1). The algorithm comes from the registry entry, as for events (§5.1).
+    """
+    signature = _decode_b64(signature_b64)
+    if signature is None:
+        return False
+        # end if
+    try:
+        if entry.algorithm == SignatureAlgorithm.ED25519:
+            assert isinstance(entry.public_key, Ed25519PublicKey)
+            entry.public_key.verify(signature, payload)
+        else:
+            if len(signature) != _P256_RAW_SIGNATURE_LEN:
+                return False
+                # end if
+            assert isinstance(entry.public_key, EllipticCurvePublicKey)
+            half = _P256_RAW_SIGNATURE_LEN // 2
+            der = encode_dss_signature(int.from_bytes(signature[:half], 'big'), int.from_bytes(signature[half:], 'big'))
+            algorithm = hash_algorithm if hash_algorithm is not None else hashes.SHA256()
+            entry.public_key.verify(der, payload, ec.ECDSA(algorithm))
+            # end if
+    except InvalidSignature:
+        return False
+        # end try
+    return True
     # end def
 
 
@@ -116,6 +158,33 @@ class KeyRegistryVerifier:
             return reasons.SIGNATURE_INVALID
             # end if
         return None
+        # end def
+
+    # end class
+
+
+class WitnessRegistryVerifier:
+    """A tool-side witness verifier backed by the out-of-band registry of host keys (§7.1, §10.9).
+
+    The witness registry has the same shape and the same algorithm identifiers as the Level-2 one
+    and never shares an entry with it. A `host_key_id` with no current entry - never registered, or
+    revoked - does not establish the witness, which maps onto `host-signature-invalid` rather than
+    earning a code of its own (§7.6, §10.9).
+    """
+
+    def __init__(self, registry: KeyRegistry, *, hash_algorithm: hashes.HashAlgorithm | None = None) -> None:
+        """Bind the verifier to the registry of onboarded host public keys and the ECDSA hash."""
+        self._registry = registry
+        self._hash_algorithm = hash_algorithm
+        # end def
+
+    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool:
+        """Return True if the signature verifies against the registered host key (local, no I/O)."""
+        entry = self._registry.get(host_key_id)
+        if entry is None:
+            return False
+            # end if
+        return verify_detached_signature(payload, signature, entry, self._hash_algorithm)
         # end def
 
     # end class
