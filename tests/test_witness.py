@@ -13,6 +13,8 @@ from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2 import (
     Ed25519WitnessSigner,
     KeyRegistry,
+    KeyRegistryVerifier,
+    KeyRole,
     SignatureAlgorithm,
     WitnessRegistryVerifier,
     generate_tool_key,
@@ -270,7 +272,7 @@ async def _run(session: AmcpSession) -> None:
 
 def _registry_for(key_id: str, public_key: object) -> WitnessRegistryVerifier:
     """A witness verifier holding one host key, as an onboarded registry would."""
-    registry = KeyRegistry()
+    registry = KeyRegistry(KeyRole.HOST)
     registry.register(key_id, public_key, SignatureAlgorithm.ED25519)  # type: ignore[arg-type]
     return WitnessRegistryVerifier(registry)
     # end def
@@ -740,4 +742,36 @@ def test_without_a_signature_checker_the_level_2_records_are_unchecked() -> None
     report = verify_ledger([_l2_record(0, 1, '0' * 64)])
     assert report.ok
     assert report.unchecked == ('level-2-signature',)
+    # end def
+
+
+def test_one_registry_cannot_serve_both_roles() -> None:
+    """§10.9: the two registries share no entry, and one registry holding one role is how that holds."""
+    tool_keys = KeyRegistry(KeyRole.TOOL)
+    host_keys = KeyRegistry(KeyRole.HOST)
+    with pytest.raises(ValueError, match='host-key registry'):
+        WitnessRegistryVerifier(tool_keys)
+        # end with
+    with pytest.raises(ValueError, match='tool-key registry'):
+        KeyRegistryVerifier(host_keys)
+        # end with
+    # end def
+
+
+def test_a_tool_cannot_sign_itself_into_the_host_witnessed_state() -> None:
+    """§5.2 rests on the tool holding no key the verifier's registry binds to a host."""
+    tool_key = generate_tool_key('tool-k1')
+    shared = KeyRegistry(KeyRole.TOOL)
+    shared.register_tool_key(tool_key)
+    # The misuse the guard forbids: handing the tool-key registry to the witness verifier, which would
+    # resolve `host_key_id: "tool-k1"` and accept a signature the tool made with its own key.
+    with pytest.raises(ValueError):
+        WitnessRegistryVerifier(shared)
+        # end with
+    # A host-key registry that the tool's key was never put into refuses it, as §5.2 requires.
+    host_keys = KeyRegistry(KeyRole.HOST)
+    verifier = WitnessRegistryVerifier(host_keys)
+    payload = witness_payload(0, '2026-07-15T00:00:02.000Z', '0' * 64, 'a' * 64)
+    forged = base64.b64encode(tool_key.private_key.sign(payload)).decode()
+    assert not verifier.check('tool-k1', forged, payload)
     # end def

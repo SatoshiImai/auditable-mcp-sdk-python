@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
 from auditable_mcp import fields, reasons
-from auditable_mcp.l2.keys import KeyRegistry, RegisteredKey, SignatureAlgorithm
+from auditable_mcp.l2.keys import KeyRegistry, KeyRole, RegisteredKey, SignatureAlgorithm
 from auditable_mcp.l2.signing import signature_payload
 from auditable_mcp.models import RejectReason
 
@@ -136,7 +136,14 @@ class KeyRegistryVerifier:
     """
 
     def __init__(self, registry: KeyRegistry, *, hash_algorithm: hashes.HashAlgorithm | None = None) -> None:
-        """Bind the verifier to the registry of onboarded public keys and the ECDSA hash."""
+        """Bind the verifier to the registry of onboarded tool public keys and the ECDSA hash.
+
+        Raises:
+            ValueError: If `registry` holds host keys (§10.9).
+        """
+        if registry.role is not KeyRole.TOOL:
+            raise ValueError('a Level-2 verifier needs a tool-key registry (§10.9)')
+            # end if
         self._registry = registry
         self._hash_algorithm = hash_algorithm
         # end def
@@ -188,7 +195,16 @@ class WitnessRegistryVerifier:
     """
 
     def __init__(self, registry: KeyRegistry, *, hash_algorithm: hashes.HashAlgorithm | None = None) -> None:
-        """Bind the verifier to the registry of onboarded host public keys and the ECDSA hash."""
+        """Bind the verifier to the registry of onboarded host public keys and the ECDSA hash.
+
+        Raises:
+            ValueError: If `registry` holds tool keys. A tool that can be found in the registry a
+                verifier resolves `host_key_id` against can sign a witness payload with its own key and
+                manufacture the host-witnessed state §5.2 says it cannot (§10.9).
+        """
+        if registry.role is not KeyRole.HOST:
+            raise ValueError('a witness verifier needs a host-key registry (§10.9)')
+            # end if
         self._registry = registry
         self._hash_algorithm = hash_algorithm
         # end def

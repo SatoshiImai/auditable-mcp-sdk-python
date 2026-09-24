@@ -54,11 +54,29 @@ def generate_tool_key(key_id: str) -> ToolKey:
     # end def
 
 
-class KeyRegistry:
-    """Maps `key_id` to its bound algorithm and public key, established out-of-band at onboarding (§5.1)."""
+class KeyRole(StrEnum):
+    """Whose keys a registry holds (§5.1 for a tool's, §7.1 for a host's).
 
-    def __init__(self) -> None:
-        """Initialize an empty registry."""
+    §10.9 requires the two registries to share no entry, and the only way an SDK can hold that is to
+    make one registry serve one role. Without it a single registry serves both, a tool's own key
+    resolves as a `host_key_id`, and the tool manufactures the host-witnessed state §5.2 says it
+    cannot - defeating the axis rather than degrading it.
+    """
+
+    TOOL = 'tool'
+    HOST = 'host'
+    # end class
+
+
+class KeyRegistry:
+    """Maps `key_id` to its bound algorithm and public key, established out-of-band at onboarding (§5.1).
+
+    One registry holds one role's keys (§10.9); see `KeyRole`.
+    """
+
+    def __init__(self, role: KeyRole = KeyRole.TOOL) -> None:
+        """Initialize an empty registry for one role's keys (§10.9)."""
+        self.role = role
         self._keys: dict[str, RegisteredKey] = {}
         # end def
 
