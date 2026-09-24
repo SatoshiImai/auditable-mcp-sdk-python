@@ -50,6 +50,7 @@ from auditable_mcp.models import (
     AuditCapability,
     Level,
     TargetResource,
+    UnavailableResponse,
     Witness,
 )
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
@@ -440,6 +441,9 @@ class TestPerEventWire:
                     # end async with
                 # end with
             assert aborted.value.reason == 'host-unavailable'
+            # The bound is the transport's, so assert what it answers, not only what the session does
+            # with it: silence MUST become an `unavailable` response (§6), never an absent one.
+            assert isinstance(await transport.send_attempt({'id': 'probe'}), UnavailableResponse)
             # end async with
         # end def
 

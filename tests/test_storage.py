@@ -8,7 +8,15 @@ from auditable_mcp.hashing import GENESIS_HASH
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger, SealedRecord
-from auditable_mcp.models import SPEC_VERSION, AcceptResponse, RejectResponse, UnavailableResponse
+from auditable_mcp.models import (
+    SPEC_VERSION,
+    AcceptResponse,
+    AuditCapability,
+    Level,
+    RejectResponse,
+    UnavailableResponse,
+    Witness,
+)
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.storage import InMemoryLedgerRepository, RepositoryError
 from auditable_mcp.verify import verify_ledger
@@ -76,6 +84,21 @@ class _FlakyRepository:
         """Return every record of `partition`."""
         return list(self._records.get(partition, []))
         # end def
+
+
+class _OkVerifier:
+    """A verifier that accepts every signature."""
+
+    async def verify(self, event: dict[str, object]) -> str | None:
+        """Always verify."""
+        return None
+        # end def
+
+
+def _signed(event: dict[str, object], sequence: int) -> dict[str, object]:
+    """Stamp an event with L2 fields at a given sequence."""
+    return {**event, 'key_id': 'k1', 'signer_seq': sequence, 'signature': 'stub'}
+    # end def
 
 
 def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
@@ -219,6 +242,30 @@ async def test_outcome_persistence_failure_is_logged_not_flagged(caplog: pytest.
     assert host.anomalies() == []
     assert len(host.records()) == 1
     assert any('could not persist' in record.message for record in caplog.records)
+    # end def
+
+
+async def test_lost_outcome_does_not_advance_the_signer_seq_tracker() -> None:
+    """A lost outcome was never sealed, so the per-key counter must still point at the last sealed value.
+
+    Advancing it would make the tool's next honest `signer_seq` read as a replay (§7.4).
+    """
+    repo = _FlakyRepository()
+    host = AuditHost(
+        'tenant-a',
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
+        verifier=_OkVerifier(),
+        repository=repo,
+        clock=_Clock(),
+    )
+    first = '00000000-0000-4000-8000-000000000001'
+    assert isinstance(await host.handle_attempt(_signed(_attempt(first), 1)), AcceptResponse)
+    repo.fail = True
+    await host.handle_outcome(_signed(_attempt(first, outcome='success'), 2))
+    repo.fail = False
+    second = '00000000-0000-4000-8000-000000000002'
+    assert isinstance(await host.handle_attempt(_signed(_attempt(second), 2)), AcceptResponse)
+    assert host.anomalies() == []
     # end def
 
 

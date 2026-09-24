@@ -206,7 +206,8 @@ async def test_success_outcome_without_attempt_is_flagged() -> None:
     """A success referencing no accepted attempt is an anomaly and is not sealed (§7.2)."""
     host = _l1_host()
     await host.handle_outcome(_attempt('00000000-0000-4000-8000-0000000000ff', outcome='success'))
-    assert any(a.kind == 'orphaned-outcome' for a in host.anomalies())
+    orphan = next(a for a in host.anomalies() if a.kind == 'orphaned-outcome')
+    assert 'without accepted attempt' in orphan.detail
     assert len(host.records()) == 0
     # end def
 
@@ -295,7 +296,8 @@ async def test_outcome_after_reject_is_flagged() -> None:
     event_id = '00000000-0000-4000-8000-000000000001'
     await host.handle_attempt(_attempt(event_id))  # unsigned under L2 -> rejected, id remembered
     await host.handle_outcome(_signed(_attempt(event_id, outcome='success'), 0))
-    assert any(a.kind == 'orphaned-outcome' for a in host.anomalies())
+    orphan = next(a for a in host.anomalies() if a.kind == 'orphaned-outcome')
+    assert 'rejected id' in orphan.detail
     # end def
 
 
