@@ -326,3 +326,39 @@ async def test_l2_session_over_real_host_tracks_sequence() -> None:
     assert host.anomalies() == []
     assert verify_ledger(records, host.digest()).ok
     # end def
+
+
+_L2 = AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE)
+
+
+class TestAnOutcomeThatFailsLevel2Validation:
+    """§6, §8.3: an outcome is validated like an attempt, and a failure is dropped and flagged."""
+
+    @pytest.mark.asyncio
+    async def test_a_forged_outcome_is_not_sealed_and_is_flagged(self) -> None:
+        """§6: the host cannot reject a notification, so the anomaly set is where the failure goes."""
+        host = AuditHost('tenant-a', _L2, verifier=_BadVerifier(), clock=_Clock())
+        # The attempt is sealed by a host that accepts it, so the outcome has something to correlate to.
+        good = AuditHost('tenant-a', _L2, verifier=_OkVerifier(), clock=_Clock())
+        attempt = _signed(_attempt('00000000-0000-4000-8000-000000000001'), 1)
+        await good.handle_attempt(attempt)
+        host._accepted_attempts.add('00000000-0000-4000-8000-000000000001')  # noqa: SLF001 - the correlated state
+        before = len(host.records())
+        await host.handle_outcome(_signed({**attempt, 'outcome': 'success'}, 2))
+        assert len(host.records()) == before, 'a forged outcome was sealed'
+        assert [anomaly.kind for anomaly in host.anomalies()] == ['signature-invalid']
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_replayed_outcome_sequence_is_not_sealed_and_is_flagged(self) -> None:
+        """§7.4: a signer_seq at or below the last accepted is a replay, on either channel."""
+        host = AuditHost('tenant-a', _L2, verifier=_OkVerifier(), clock=_Clock())
+        attempt = _signed(_attempt('00000000-0000-4000-8000-000000000001'), 5)
+        await host.handle_attempt(attempt)
+        before = len(host.records())
+        await host.handle_outcome(_signed({**attempt, 'outcome': 'success'}, 5))
+        assert len(host.records()) == before, 'a replayed outcome was sealed'
+        assert 'replay-detected' in [anomaly.kind for anomaly in host.anomalies()]
+        # end def
+
+    # end class
