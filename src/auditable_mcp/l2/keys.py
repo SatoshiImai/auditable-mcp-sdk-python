@@ -28,6 +28,14 @@ class SignatureAlgorithm(StrEnum):
     # end class
 
 
+# §5.1: an entry's public key must be a key of the entry's algorithm. Pinning the pair here is what
+# lets the verifiers assert the key type instead of meeting a mismatch mid-verification.
+_KEY_TYPES: dict[SignatureAlgorithm, type[Ed25519PublicKey] | type[EllipticCurvePublicKey]] = {
+    SignatureAlgorithm.ED25519: Ed25519PublicKey,
+    SignatureAlgorithm.ECDSA_P256_SHA256: EllipticCurvePublicKey,
+}
+
+
 @dataclass(frozen=True)
 class ToolKey:
     """A tool's Ed25519 key pair and its identity."""
@@ -87,8 +95,19 @@ class KeyRegistry:
         algorithm is forbidden — rotation MUST use a fresh `key_id` (§10.9).
 
         Raises:
-            ValueError: If `key_id` is already bound to a different key or algorithm.
+            ValueError: If `key_id` is empty, if `public_key` is not a key of `algorithm`, or if
+                `key_id` is already bound to a different key or algorithm.
         """
+        if not key_id:
+            raise ValueError('a registry entry binds a non-empty key_id (§5.1)')
+            # end if
+        # §5.1: the public key MUST be a key of the entry's algorithm, and a disagreeing entry is
+        # refused here rather than carried to verification time, where every event bound to it would
+        # be rejected `signature-invalid` — a forged signature, which is not what went wrong.
+        if not isinstance(public_key, _KEY_TYPES[algorithm]):
+            expected = _KEY_TYPES[algorithm].__name__
+            raise ValueError(f'a {algorithm} entry binds a {expected}, not a {type(public_key).__name__} (§5.1)')
+            # end if
         existing = self._keys.get(key_id)
         if existing is not None and (existing.algorithm != algorithm or existing.public_key is not public_key):
             raise ValueError(f'key_id {key_id!r} is already registered with a different key (§10.9)')

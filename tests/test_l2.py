@@ -2,6 +2,7 @@
 
 import base64
 
+import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
@@ -14,6 +15,7 @@ from auditable_mcp.l2 import (
     EgressObservation,
     KeyRegistry,
     KeyRegistryVerifier,
+    KeyRole,
     SignatureAlgorithm,
     generate_tool_key,
     reconcile,
@@ -282,3 +284,41 @@ def test_reconcile_clean_when_all_egress_is_reported() -> None:
     observations = [EgressObservation('c1', 'https://api.example')]
     assert reconcile(ledger.records(), observations, 'c1') == []
     # end def
+
+
+class TestRegistryEntriesAreConforming:
+    """§5.1: an entry binds a non-empty key_id to one algorithm and a key of that algorithm."""
+
+    def test_an_entry_cannot_bind_a_key_of_another_algorithm(self) -> None:
+        """Carried to verification it reads as a forged signature, which names the wrong fact."""
+        registry = KeyRegistry(KeyRole.HOST)
+        ec_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+        with pytest.raises(ValueError, match='Ed25519PublicKey'):
+            registry.register('k1', ec_key, SignatureAlgorithm.ED25519)
+            # end with
+        with pytest.raises(ValueError, match='EllipticCurvePublicKey'):
+            registry.register('k2', generate_tool_key('t').public_key, SignatureAlgorithm.ECDSA_P256_SHA256)
+            # end with
+        # end def
+
+    def test_an_entry_cannot_bind_an_empty_key_id(self) -> None:
+        """§5.1 requires a non-empty key_id; an empty one names no signer."""
+        registry = KeyRegistry()
+        with pytest.raises(ValueError, match='non-empty'):
+            registry.register('', generate_tool_key('t').public_key, SignatureAlgorithm.ED25519)
+            # end with
+        # end def
+
+    def test_a_conforming_entry_still_registers(self) -> None:
+        """The guard refuses the disagreeing pair, not the pair the deployment actually has."""
+        registry = KeyRegistry()
+        tool_key = generate_tool_key('t')
+        registry.register(tool_key.key_id, tool_key.public_key, SignatureAlgorithm.ED25519)
+        registry.register(
+            'ec', ec.generate_private_key(ec.SECP256R1()).public_key(), SignatureAlgorithm.ECDSA_P256_SHA256
+        )
+        assert registry.get(tool_key.key_id) is not None
+        assert registry.get('ec') is not None
+        # end def
+
+    # end class
