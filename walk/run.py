@@ -31,6 +31,7 @@ from auditable_mcp import (
     AuditCapability,
     AuditHost,
     Level,
+    RepositoryError,
     SealedRecord,
     Witness,
     verify_ledger,
@@ -51,16 +52,24 @@ OPERATIONS = 4
 
 
 class _Store:
-    """A durable repository whose write yields, which is where §7.1's window used to open."""
+    """A durable repository whose write yields, which is where §7.1's window used to open.
 
-    def __init__(self) -> None:
-        """Start empty."""
+    `fail_after` makes it stop accepting writes partway, the way a store that has gone away does. A
+    host that cannot persist replies `unavailable` (§7.1) and the tool fails closed.
+    """
+
+    def __init__(self, fail_after: int = 0) -> None:
+        """Start empty, optionally failing once `fail_after` records are stored."""
         self.rows: list[SealedRecord] = []
+        self._fail_after = fail_after
         # end def
 
     async def append(self, partition: str, record: SealedRecord) -> None:
-        """Yield, then store."""
+        """Yield, then store - or refuse, once the store has been told to go away."""
         await anyio.sleep(0)
+        if self._fail_after and len(self.rows) >= self._fail_after:
+            raise RepositoryError('the store went away')
+            # end if
         self.rows.append(record)
         # end def
 
@@ -93,6 +102,9 @@ class Case:
     expect_records: int = OPERATIONS * 2
     expect_local_records: int = 0
     calls: int = 1
+    sequential_calls: int = 1
+    host_fails_after: int = 0
+    expect_local_verifies: bool = True
     expect_call_error: bool = False
     expect_tool_death: bool = False
     death: str = ''
@@ -143,6 +155,56 @@ CASES: list[Case] = [
         expect_records=-1,
         expect_tool_death=True,
     ),
+    Case(
+        'mandatory-refuses-an-unaudited-host',
+        {'WALK_LEVEL': 'L1', 'WALK_POSTURE': 'mandatory'},
+        audited=False,
+        expect_negotiated=False,
+        expect_records=0,
+        expect_call_error=True,
+    ),
+    Case(
+        'a-tool-that-requires-a-witness-will-not-degrade',
+        {'WALK_LEVEL': 'L1', 'WALK_TOOL_WITNESS': 'host', 'WALK_POSTURE': 'mandatory'},
+        audited=False,
+        expect_negotiated=False,
+        expect_records=0,
+        expect_call_error=True,
+    ),
+    Case(
+        'a-witnessing-host-satisfies-a-tool-that-requires-one',
+        {'WALK_LEVEL': 'L1', 'WALK_TOOL_WITNESS': 'host'},
+        host_witness=Witness.HOST,
+    ),
+    Case(
+        'a-long-lived-connection',
+        {'WALK_LEVEL': 'L2'},
+        host_level=Level.L2,
+        sequential_calls=20,
+        expect_records=OPERATIONS * 2 * 20,
+    ),
+    Case(
+        'the-host-stops-persisting-mid-connection',
+        {'WALK_LEVEL': 'L1'},
+        sequential_calls=3,
+        host_fails_after=OPERATIONS,
+        expect_records=-1,
+        expect_call_error=True,
+    ),
+    Case(
+        'degraded-concurrency-in-the-tools-own-host',
+        {'WALK_LEVEL': 'L1', 'WALK_OPERATIONS': '16'},
+        audited=False,
+        expect_negotiated=False,
+        expect_records=0,
+        expect_local_records=32,
+    ),
+    Case(
+        'l2-with-a-remote-signer',
+        {'WALK_LEVEL': 'L2', 'WALK_SIGNER': 'slow', 'WALK_OPERATIONS': '8'},
+        host_level=Level.L2,
+        expect_records=16,
+    ),
     Case('crosslang-ts-tool-l1', {'WALK_LEVEL': 'L1'}, tool='typescript'),
     Case('crosslang-ts-tool-l2', {'WALK_LEVEL': 'L2'}, tool='typescript', host_level=Level.L2),
     Case(
@@ -160,6 +222,22 @@ CASES: list[Case] = [
         expect_negotiated=False,
         expect_records=0,
         expect_local_records=OPERATIONS * 2,
+    ),
+    Case(
+        'crosslang-ts-tool-degraded-concurrency',
+        {'WALK_LEVEL': 'L1', 'WALK_OPERATIONS': '16'},
+        tool='typescript',
+        audited=False,
+        expect_negotiated=False,
+        expect_records=0,
+        expect_local_records=32,
+    ),
+    Case(
+        'crosslang-ts-tool-remote-signer',
+        {'WALK_LEVEL': 'L2', 'WALK_SIGNER': 'slow', 'WALK_OPERATIONS': '8'},
+        tool='typescript',
+        host_level=Level.L2,
+        expect_records=16,
     ),
     Case(
         'degraded-host-requires-a-higher-level',
@@ -186,7 +264,7 @@ def _onboard() -> tuple[ToolKey, str]:
 
 def _host(case: Case, tool_key: ToolKey) -> tuple[AuditHost, _Store]:
     """Build the host this case declares, durable and (where asked) witnessing."""
-    store = _Store()
+    store = _Store(case.host_fails_after)
     capability = AuditCapability(
         spec_version=SPEC_VERSION, level=case.host_level, attempt='request', witness=case.host_witness
     )
@@ -305,21 +383,28 @@ async def _call(case: Case, read_stream: object, write_stream: object, host: Aud
             # end def
 
         try:
-            async with anyio.create_task_group() as calls:
-                for n in range(case.calls):
-                    calls.start_soon(one_call, n)
-                    # end for
-                # end async with
+            for _round in range(case.sequential_calls):
+                async with anyio.create_task_group() as calls:
+                    for n in range(case.calls):
+                        calls.start_soon(one_call, n)
+                        # end for
+                    # end async with
+                # end for
         except BaseException as error:  # noqa: BLE001 - the tool process may be gone
-            if not case.expect_tool_death:
+            if not (case.expect_tool_death or case.expect_call_error):
                 raise
                 # end if
             case.death = repr(error)[:120]
             # end try
+        if case.expect_call_error and not any(getattr(call, 'isError', False) for call in results) and not case.death:
+            case.findings.append('the call was supposed to fail and it did not')
+            # end if
         for call in results:
             text = ''.join(block.text for block in call.content if hasattr(block, 'text'))  # type: ignore[attr-defined]
             if call.isError:  # type: ignore[attr-defined]
-                case.findings.append(f'the tool call failed: {text}')
+                if not case.expect_call_error:
+                    case.findings.append(f'the tool call failed: {text}')
+                    # end if
                 continue
                 # end if
             if f'negotiated={case.expect_negotiated}' not in text:
@@ -327,6 +412,12 @@ async def _call(case: Case, read_stream: object, write_stream: object, host: Aud
                 # end if
             if f'local_records={case.expect_local_records}' not in text:
                 case.findings.append(f'the tool-local ledger is not {case.expect_local_records}: {text}')
+                # end if
+            if case.expect_local_records and f'local_verifies={case.expect_local_verifies}' not in text:
+                case.findings.append(f"the tool's own ledger does not verify: {text}")
+                # end if
+            if case.expect_local_records and 'local_anomalies=0' not in text:
+                case.findings.append(f"the tool's own ledger holds anomalies: {text}")
                 # end if
             # end for
         await session.send_ping()
@@ -343,11 +434,15 @@ async def main(selectors: Sequence[str]) -> int:
         # end if
     failures = 0
     for case in chosen:
-        with anyio.move_on_after(60) as scope:
-            await _run(case)
+        with anyio.move_on_after(120) as scope:
+            try:
+                await _run(case)
+            except BaseException as error:  # noqa: BLE001 - a case must report, not end the walk
+                case.findings.append(f'the case raised: {type(error).__name__}: {error}'[:200])
+                # end try
             # end with
         if scope.cancelled_caught:
-            case.findings.append('timed out after 60s')
+            case.findings.append('timed out after 120s')
             # end if
         mark = '  ok  ' if not case.findings else 'FINDING'
         print(f'[{mark}] {case.name}')

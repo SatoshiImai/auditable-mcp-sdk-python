@@ -330,6 +330,11 @@ It also drives the **TypeScript** tool from this Python host over the same pipe,
 the interoperability claim something other than an assertion. Those cases are skipped if the other
 port is not checked out beside this one.
 
+The cases have teeth: removing the §7.1 sealing lock, the §7.4 numbering section, or either side's
+`initialize` declaration turns the walk red in both ports. Guards against *misuse* of this SDK's own
+API are not covered here — nothing across a process boundary can provoke them — and belong to the
+suite.
+
 ```bash
 make walk                 # every case
 make walk CASE=crosslang  # the cross-language cases

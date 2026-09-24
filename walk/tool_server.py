@@ -26,14 +26,78 @@ from auditable_mcp import (
     InProcessTransport,
     Level,
     Posture,
+    SealedRecord,
     TargetResource,
     Witness,
     transport_for,
+    verify_ledger,
 )
 from auditable_mcp.l2 import Ed25519Signer, KeyRegistry, KeyRegistryVerifier, ToolKey, generate_tool_key
 from auditable_mcp.mcp import McpAuditTransport
 
 TOOL_NAME = 'read_customers'
+
+
+class _YieldingStore:
+    """A store whose write yields, so the tool's own host has §7.1's window to get wrong."""
+
+    def __init__(self) -> None:
+        """Start empty."""
+        self.rows: list[SealedRecord] = []
+        # end def
+
+    async def append(self, partition: str, record: SealedRecord) -> None:
+        """Yield, then store."""
+        await anyio.sleep(0)
+        self.rows.append(record)
+        # end def
+
+    async def load_tail(self, partition: str) -> SealedRecord | None:
+        """No prior chain."""
+        return None
+        # end def
+
+    async def read_all(self, partition: str) -> list[SealedRecord]:
+        """Everything stored."""
+        return list(self.rows)
+        # end def
+
+    # end class
+
+
+class _RemoteSigner:
+    """A signer whose latency is uneven, the shape of every remote one (§5.1 KMS).
+
+    Wraps the real signer so the event is genuinely signed; only the waiting is simulated. Without
+    it a local Ed25519 signer never yields, so nothing in the walk can reorder and §7.4's section
+    would be exercised by no case at all.
+    """
+
+    def __init__(self, inner: Ed25519Signer) -> None:
+        """Wrap the real signer and count the calls, to vary the wait."""
+        self._inner = inner
+        self._calls = 0
+        # end def
+
+    async def sign(self, event: dict[str, object]) -> dict[str, object]:
+        """Number first, then wait - which is the order a remote signer works in (§5.1).
+
+        The AWS KMS adapter takes `signer_seq` and then awaits the service, so the number is fixed
+        before the latency that can reorder the emission. Waiting first would number in wake order
+        and reproduce nothing.
+        """
+        self._calls += 1
+        # Captured before the await: reading the counter afterwards gives every caller the same
+        # value on a runtime where awaiting the inner signer lets every other caller number first.
+        wait = max(0.0, 0.060 - self._calls * 0.006)
+        signed = await self._inner.sign(event)
+        # Each later call waits less than every earlier one, so without §7.4's section the emission
+        # order is exactly the reverse of the numbering - deterministically, not by chance.
+        await anyio.sleep(wait)
+        return signed
+        # end def
+
+    # end class
 
 
 def _onboarded_key(key_id: str, private_key_b64: str) -> ToolKey:
@@ -50,11 +114,12 @@ def _settings() -> dict[str, object]:
     """Read the walk's knobs from the environment."""
     return {
         'level': Level.L2 if os.environ.get('WALK_LEVEL', 'L1') == 'L2' else Level.L1,
-        'witness': Witness.HOST if os.environ.get('WALK_WITNESS') == 'host' else Witness.NONE,
+        'witness': Witness.HOST if os.environ.get('WALK_TOOL_WITNESS') == 'host' else Witness.NONE,
         'posture': Posture.MANDATORY if os.environ.get('WALK_POSTURE') == 'mandatory' else Posture.DEGRADED,
         'operations': int(os.environ.get('WALK_OPERATIONS', '4')),
         'disclose_bytes': int(os.environ.get('WALK_DISCLOSE_BYTES', '0')),
         'die_after': int(os.environ.get('WALK_DIE_AFTER', '0')),
+        'slow_signer': os.environ.get('WALK_SIGNER') == 'slow',
         'key_id': os.environ.get('WALK_TOOL_KEY_ID', 'walk-tool-key'),
         'private_key': os.environ.get('WALK_TOOL_PRIVATE_KEY', ''),
     }
@@ -71,7 +136,10 @@ async def main() -> None:
         witness=settings['witness'],  # type: ignore[arg-type]
     )
     tool_key = _onboarded_key(str(settings['key_id']), str(settings['private_key']))
-    signer = Ed25519Signer.from_tool_key(tool_key) if capability.level == Level.L2 else None
+    signer: object | None = Ed25519Signer.from_tool_key(tool_key) if capability.level == Level.L2 else None
+    if signer is not None and settings['slow_signer']:
+        signer = _RemoteSigner(signer)
+        # end if
 
     # The degraded posture records into a host the tool provides for itself (§6.2).
     local_registry = KeyRegistry()
@@ -80,6 +148,7 @@ async def main() -> None:
         'tool-local',
         AuditCapability(spec_version=SPEC_VERSION, level=capability.level, attempt='request', witness=Witness.NONE),
         verifier=KeyRegistryVerifier(local_registry) if capability.level == Level.L2 else None,
+        repository=_YieldingStore(),
     )
 
     server: Server = Server('walk-tool')
@@ -137,7 +206,9 @@ async def main() -> None:
                     types.TextContent(
                         type='text',
                         text=f'negotiated={negotiation.negotiated} outcome={negotiation.outcome} '
-                        f'local_records={len(local_host.records())}',
+                        f'local_records={len(local_host.records())} '
+                        f'local_verifies={verify_ledger(local_host.records()).ok} '
+                        f'local_anomalies={len(local_host.anomalies())}',
                     )
                 ]
                 # end def
