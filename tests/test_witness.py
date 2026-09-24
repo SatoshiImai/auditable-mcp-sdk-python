@@ -1,6 +1,8 @@
 """Unit tests for the witness axis (§5.2, §7.1, §7.2): the host side."""
 
 import base64
+from collections.abc import Callable, Mapping
+from typing import Any, cast
 
 import pytest
 from cryptography.exceptions import InvalidSignature
@@ -27,7 +29,7 @@ from auditable_mcp.models import (
     Witness,
 )
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
-from auditable_mcp.verify import verify_ledger
+from auditable_mcp.verify import RecordAdapter, verify_ledger
 
 _HOST_KEY_ID = 'host-key-2026'
 
@@ -573,4 +575,66 @@ def test_a_stored_half_pair_is_reported_not_ignored() -> None:
         assert not report.ok, witness
         assert [issue.kind for issue in report.issues] == ['host-signature-invalid'], witness
         # end for
+    # end def
+
+
+def test_the_identifier_is_reachable_from_the_package() -> None:
+    """An integrator imports the package, not the module; an unexported constant is not shipped."""
+    import auditable_mcp
+
+    assert auditable_mcp.EXTENSION_ID == EXTENSION_ID
+    assert 'EXTENSION_ID' in auditable_mcp.__all__
+    # end def
+
+
+def _enveloped(record_event: dict[str, object]) -> tuple[SealedRecord, RecordAdapter]:
+    """A record sealed inside an envelope, with the adapter that reaches into it (§10.10)."""
+    envelope: dict[str, object] = {'principal_id': 'tenant-a', 'extensions': {'auditable-mcp': record_event}}
+    record_hash = compute_record_hash(envelope, 0, '2026-07-15T00:00:02.000Z', '0' * 64)
+    record = SealedRecord(
+        event=envelope, seq=0, host_ts='2026-07-15T00:00:02.000Z', previous_hash='0' * 64, record_hash=record_hash
+    )
+    inner = cast('Callable[[Mapping[str, object]], Any]', lambda e: e['extensions']['auditable-mcp'])  # type: ignore[index]
+    adapter = RecordAdapter(
+        id_of=lambda e: inner(e)['id'],
+        is_attempt=lambda e: inner(e)['outcome'] == 'attempted',
+        event_of=inner,
+        principal_of=lambda e: e.get('principal_id'),
+    )
+    return record, adapter
+    # end def
+
+
+def test_an_enveloped_level_2_signature_is_also_named_unchecked() -> None:
+    """The signature lives inside the envelope, which is the deployment §10.10 recommends (§11.4)."""
+    signed = {
+        **_event('00000000-0000-4000-8000-000000000001'),
+        'key_id': 'k1',
+        'signer_seq': 1,
+        'signature': 'ZmFrZQ==',
+    }
+    record, adapter = _enveloped(signed)
+    report = verify_ledger([record], adapter=adapter, expected_principal='tenant-a')
+    assert report.ok
+    assert report.unchecked == ('level-2-signature',)
+    assert not report.complete
+    # end def
+
+
+def test_a_schema_issue_does_not_erase_what_was_left_unchecked() -> None:
+    """§11.4's report survives the schema branch; a rebuilt report that drops it says less (§7.1)."""
+    bad_event: dict[str, object] = {'not': 'an audit event'}
+    record = SealedRecord(
+        event=bad_event,
+        seq=0,
+        host_ts='2026-07-15T00:00:02.000Z',
+        previous_hash='0' * 64,
+        record_hash=compute_record_hash(bad_event, 0, '2026-07-15T00:00:02.000Z', '0' * 64),
+        host_signature='ZmFrZQ==',
+        host_key_id=_HOST_KEY_ID,
+    )
+    report = verify_ledger([record])
+    assert not report.ok
+    assert 'schema-invalid' in {issue.kind for issue in report.issues}
+    assert report.unchecked == ('witness',)
     # end def

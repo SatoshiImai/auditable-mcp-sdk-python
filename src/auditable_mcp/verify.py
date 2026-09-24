@@ -226,7 +226,11 @@ def verify_chain(
         # §11.4 names the Level-2 re-verification it did not perform as well: this verifier checks the
         # chain, not the event signatures (§10.6 makes that optional), and an unchecked signature must
         # not read as a verified one.
-        if event.get(fields.SIGNATURE) is not None:
+        # Read through the adapter: a record sealed inside an envelope (e.g. SEP-3004) keeps the a-MCP
+        # event, and its signature, inside it, so a top-level lookup would miss exactly the deployment
+        # §10.10 recommends and report a complete verification of signatures nobody checked.
+        inner = adapter.event_of(event)
+        if isinstance(inner, Mapping) and inner.get(fields.SIGNATURE) is not None:
             l2_unchecked = True
             # end if
 
@@ -331,5 +335,6 @@ def verify_ledger(
         count=report.count,
         computed_digest=report.computed_digest,
         issues=[*report.issues, *schema_issues],
+        unchecked=report.unchecked,
     )
     # end def

@@ -47,6 +47,8 @@ from auditable_mcp.l2 import (
 )
 from auditable_mcp.ledger import Ledger, SealedRecord
 from auditable_mcp.models import (
+    EXTENSION_ID,
+    KNOWN_SPEC_VERSIONS,
     SPEC_VERSION,
     AbortReason,
     AcceptResponse,
@@ -95,6 +97,8 @@ __all__ = [
     'CONTEXT_HASH_PREFIX',
     'GENESIS_HASH',
     'MAX_SAFE_INTEGER',
+    'EXTENSION_ID',
+    'KNOWN_SPEC_VERSIONS',
     'SPEC_VERSION',
     'AbortReason',
     'AcceptResponse',
