@@ -53,7 +53,7 @@ from pydantic import TypeAdapter, ValidationError
 from auditable_mcp.capability import NegotiationResult, negotiate
 from auditable_mcp.mcp.declaration import capability_of, declare_into
 from auditable_mcp.models import AttemptResponse, AuditCapability
-from auditable_mcp.transport import AuditEndpoint, unavailable
+from auditable_mcp.transport import AmcpUsageError, AuditEndpoint, unavailable
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ Frame = JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
 _RESPONSE_ADAPTER: TypeAdapter[AttemptResponse] = TypeAdapter(AttemptResponse)
 
 
-class McpBindingError(RuntimeError):
+class McpBindingError(AmcpUsageError):
     """The binding was driven into a state §6 does not define."""
 
     # end class

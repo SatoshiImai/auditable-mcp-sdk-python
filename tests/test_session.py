@@ -7,7 +7,7 @@ from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger
 from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Level, TargetResource, Witness
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
-from auditable_mcp.transport import accept, reject, unavailable
+from auditable_mcp.transport import AmcpUsageError, accept, reject, unavailable
 from auditable_mcp.verify import verify_ledger
 
 
@@ -371,6 +371,38 @@ class TestATransportFault:
                 pass
                 # end async with
             # end with
+        # end def
+
+    # end class
+
+
+class _MisusedTransport(_FaultyTransport):
+    """A transport that refuses because the SDK's own contract was broken, not because the wire is."""
+
+    async def send_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Refuse the way the MCP binding refuses an unnegotiated session (§6.2)."""
+        raise AmcpUsageError('this session is not audit-negotiated')
+        # end def
+
+    # end class
+
+
+class TestMisuseIsNotATransportFault:
+    """§6.2, §11.3: an integrator error is not an audit outcome and must not be filed as one."""
+
+    @pytest.mark.asyncio
+    async def test_it_reaches_the_caller_instead_of_becoming_host_unavailable(self) -> None:
+        """Blaming the host for the integrator's wiring buries the one thing they need to see."""
+        transport = _MisusedTransport()
+        session = AmcpSession(transport, 'call-1', deps=_FixedDeps())
+        with pytest.raises(AmcpUsageError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pytest.fail('the action ran although nothing recorded it')
+                # end async with
+            # end with
+        assert not transport.outcomes, 'an aborted record was filed for a wiring error'
         # end def
 
     # end class

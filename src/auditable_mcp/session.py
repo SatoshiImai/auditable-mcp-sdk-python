@@ -37,7 +37,7 @@ from auditable_mcp.models import (
     RejectResponse,
     TargetResource,
 )
-from auditable_mcp.transport import AuditTransport
+from auditable_mcp.transport import AmcpUsageError, AuditTransport
 
 
 class EventSigner(Protocol):
@@ -304,11 +304,21 @@ class AuditedAction:
         """Emit the attempt, await accept, run Polluted Stop; abort (and raise) unless cleared."""
         try:
             # §7.4: the numbering and the emission are one section, so two concurrent actions under
-            # one key cannot leave in the order their signing happened to finish in.
+            # one key cannot leave in the order their signing happened to finish in. The section
+            # spans the host's answer, not just the send: on a transport that carries each call on
+            # its own stream (Streamable HTTP, §6), two frames sent in order have no mutual arrival
+            # order, so the previous attempt has to be acknowledged before the next one is emitted.
+            # It costs the overlap of the wire latency under Level 2, and it is what makes the
+            # ordering hold on a transport that does not carry one.
             async with self._session._numbering:
                 attempt = await self._build(Outcome.ATTEMPTED)
                 response = await self._session._transport.send_attempt(attempt)
                 # end async with
+        except AmcpUsageError:
+            # Not a failure to record: the SDK was used against its own contract, and no audit
+            # outcome describes that. Filing `host-unavailable` for it would blame the host for the
+            # integrator's error and bury the one thing they need to see (§6.2).
+            raise
         except Exception as error:
             # §6/§11.3: a transport fault (as against an `unavailable` result) is a failure to record
             # and is handled exactly as `unavailable` - fail closed. The catch is broad on purpose:

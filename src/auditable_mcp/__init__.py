@@ -85,6 +85,7 @@ from auditable_mcp.session import (
 )
 from auditable_mcp.storage import InMemoryLedgerRepository, LedgerRepository, RepositoryError
 from auditable_mcp.transport import (
+    AmcpUsageError,
     AuditEndpoint,
     AuditTransport,
     accept,
@@ -111,6 +112,7 @@ __all__ = [
     'AcceptResponse',
     'AmcpAbortedError',
     'AmcpSession',
+    'AmcpUsageError',
     'AttemptResponse',
     'auditable_tool',
     'AuditCapability',

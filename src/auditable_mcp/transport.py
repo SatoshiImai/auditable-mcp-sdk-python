@@ -29,6 +29,18 @@ from auditable_mcp.models import (
 )
 
 
+class AmcpUsageError(Exception):
+    """This SDK was driven into a state its own contract forbids.
+
+    Distinct from a transport fault: a fault is a failure to record, which §7.2 turns into an
+    `aborted` outcome and a fail-closed halt, whereas this is an integrator error that no audit
+    outcome describes. The session's fail-closed catch re-raises it rather than filing an `aborted`
+    record that blames the host for it (§6.2, §11.3).
+    """
+
+    # end class
+
+
 def accept(
     seq: int,
     record_hash: str,

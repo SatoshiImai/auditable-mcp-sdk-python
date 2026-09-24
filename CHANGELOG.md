@@ -26,6 +26,10 @@ Breaking, tracking spec `auditable-mcp/0.3`.
   takes a `WitnessVerifier` (`WitnessRegistryVerifier`) and enforces §7.2's precedence — status, then
   the witness, then the hash. `SealedRecord` carries `host_signature` / `host_key_id` and omits them
   when absent, so an unwitnessed record persists byte-identically to before.
+- **`AmcpUsageError`** separates an integrator error from a transport fault. The session's
+  fail-closed catch was converting the MCP binding's own refusals - an unnegotiated send, a
+  handshake not seen - into `host-unavailable`, filing an `aborted` record that blamed the host for
+  the integrator's wiring. It now re-raises them.
 - **Atomic numbering (§7.4).** `AmcpSession` holds one section per signer across numbering and
   emission, so concurrent Level-2 actions reach the host in the order they were numbered. Without
   it, a remote signer's uneven latency let a later event overtake an earlier one, the host rejected
