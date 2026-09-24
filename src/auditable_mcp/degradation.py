@@ -19,6 +19,7 @@ posture requires somewhere to record.
 from enum import StrEnum
 
 from auditable_mcp.capability import NegotiationResult
+from auditable_mcp.models import Witness
 from auditable_mcp.transport import AuditTransport
 
 
@@ -74,6 +75,13 @@ def transport_for(
         # end if
     if posture is Posture.MANDATORY:
         raise UnnegotiatedSessionError(negotiation)
+        # end if
+    # A tool that requires a witness cannot take the degraded posture: the audit host it provides for
+    # itself holds no key a verifier's registry binds to a host (§5.2), so every action would abort
+    # `host-unwitnessed` (§7.2) and the tool would serve while doing nothing. The coherent posture for
+    # a tool with that requirement is mandatory, and saying so beats an unusable degraded session.
+    if negotiation.tool.witness == Witness.HOST:
+        raise ValueError('a tool that requires witness "host" cannot degrade; use Posture.MANDATORY (§5.2, §6.2)')
         # end if
     if fallback is None:
         raise ValueError('the degraded posture needs a fallback transport to record into (§6.2)')

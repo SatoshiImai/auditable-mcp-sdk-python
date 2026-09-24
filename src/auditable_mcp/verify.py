@@ -165,6 +165,7 @@ def verify_chain(
     attempted_ids: set[object] = set()
     prev_recomputed = GENESIS_HASH
     witness_unchecked = False
+    l2_unchecked = False
 
     for index, record in enumerate(records):
         event = record.event
@@ -222,8 +223,26 @@ def verify_chain(
             )
             # end if
 
+        # §11.4 names the Level-2 re-verification it did not perform as well: this verifier checks the
+        # chain, not the event signatures (§10.6 makes that optional), and an unchecked signature must
+        # not read as a verified one.
+        if event.get(fields.SIGNATURE) is not None:
+            l2_unchecked = True
+            # end if
+
         # Witness determination (§11.4): by the signature alone, never inferred from another field.
-        if record.host_signature is not None and record.host_key_id is not None:
+        if (record.host_signature is None) != (record.host_key_id is None):
+            # §7.1 pairs the two fields, and the response schema enforces it on the wire - but a stored
+            # record is not schema-checked, so a half-present pair reaches a verifier and establishes
+            # nothing. Silently ignoring it would be neither a check nor a report.
+            issues.append(
+                VerifyIssue(
+                    seq=record.seq,
+                    kind=HOST_SIGNATURE_INVALID,
+                    detail='host_signature and host_key_id must appear together or not at all',
+                )
+            )
+        elif record.host_signature is not None and record.host_key_id is not None:
             if witness_checker is None:
                 witness_unchecked = True
             else:
@@ -252,12 +271,15 @@ def verify_chain(
         )
         # end if
 
+    unchecked = tuple(
+        name for name, applicable in (('witness', witness_unchecked), ('level-2-signature', l2_unchecked)) if applicable
+    )
     return VerifyReport(
         ok=len(issues) == 0,
         count=len(records),
         computed_digest=computed_digest,
         issues=issues,
-        unchecked=('witness',) if witness_unchecked else (),
+        unchecked=unchecked,
     )
     # end def
 

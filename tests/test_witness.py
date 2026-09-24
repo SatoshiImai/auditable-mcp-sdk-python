@@ -5,7 +5,7 @@ import base64
 import pytest
 from cryptography.exceptions import InvalidSignature
 
-from auditable_mcp.hashing import witness_payload
+from auditable_mcp.hashing import compute_record_hash, witness_payload
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2 import (
@@ -16,7 +16,16 @@ from auditable_mcp.l2 import (
     generate_tool_key,
 )
 from auditable_mcp.ledger import SealedRecord
-from auditable_mcp.models import SPEC_VERSION, AcceptResponse, AuditCapability, Level, TargetResource, Witness
+from auditable_mcp.models import (
+    EXTENSION_ID,
+    SPEC_VERSION,
+    AcceptResponse,
+    AuditCapability,
+    Level,
+    TargetResource,
+    UnavailableResponse,
+    Witness,
+)
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
 from auditable_mcp.verify import verify_ledger
 
@@ -487,4 +496,81 @@ def test_the_golden_witnessed_chain_verifies_and_reports_its_unchecked_witness(
     report = verify_ledger(records, chain_witnessed_vector['digest'])  # type: ignore[arg-type]
     assert report.ok
     assert report.unchecked == ('witness',)
+    # end def
+
+
+class _FailingSigner:
+    """A signer whose backend is down, as an HSM or KMS client would be."""
+
+    key_id = _HOST_KEY_ID
+
+    async def sign(self, payload: bytes) -> str:
+        """Fail the way an injected third-party client fails: with its own error type."""
+        raise RuntimeError('KMS unreachable')
+        # end def
+
+    # end class
+
+
+def test_the_extension_identifier_is_part_of_the_sdk() -> None:
+    """[SEP-2133] keys the capability by this identifier; an integrator should not retype it (§6.1)."""
+    assert EXTENSION_ID == 'com.timberlandchapel/auditable-mcp'
+    # end def
+
+
+def test_a_host_declaring_none_must_not_hold_a_signer() -> None:
+    """§7.1: such a host MUST NOT return the fields, and holding a signer is the only way to."""
+    with pytest.raises(ValueError, match='must not hold'):
+        AuditHost('tenant-a', _capability(Witness.NONE), witness_signer=_FailingSigner())
+        # end with
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_signer_failure_fails_closed_as_unavailable() -> None:
+    """A host that declared it signs cannot record without the signature (§7.1, §7.6)."""
+    host = AuditHost('tenant-a', _capability(Witness.HOST), witness_signer=_FailingSigner(), clock=_Clock())
+    response = await host.handle_attempt(_event('00000000-0000-4000-8000-000000000001'))
+    assert isinstance(response, UnavailableResponse)
+    assert response.reason == 'internal-error'
+    assert response.retryable is True
+    assert host.records() == [], 'nothing may be committed when the record cannot be signed'
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_an_unverified_level_2_signature_is_named_unchecked() -> None:
+    """§11.4 names both registries: an unchecked event signature is not a verified one."""
+    host = AuditHost('tenant-a', _capability(Witness.NONE), clock=_Clock())
+    signed = {
+        **_event('00000000-0000-4000-8000-000000000001'),
+        'key_id': 'k1',
+        'signer_seq': 1,
+        'signature': 'ZmFrZQ==',
+    }
+    await host.handle_attempt(signed)
+    report = verify_ledger(host.records())
+    assert report.ok
+    assert report.unchecked == ('level-2-signature',)
+    assert not report.complete
+    # end def
+
+
+def test_a_stored_half_pair_is_reported_not_ignored() -> None:
+    """A stored record is not schema-checked, so the verifier is the last place to catch it (§7.1)."""
+    event = _event('00000000-0000-4000-8000-000000000001')
+    record_hash = compute_record_hash(event, 0, '2026-07-15T00:00:02.000Z', '0' * 64)
+    for witness in ({'host_signature': 'ZmFrZQ=='}, {'host_key_id': _HOST_KEY_ID}):
+        record = SealedRecord(
+            event=event,
+            seq=0,
+            host_ts='2026-07-15T00:00:02.000Z',
+            previous_hash='0' * 64,
+            record_hash=record_hash,
+            **witness,  # type: ignore[arg-type]
+        )
+        report = verify_ledger([record])
+        assert not report.ok, witness
+        assert [issue.kind for issue in report.issues] == ['host-signature-invalid'], witness
+        # end for
     # end def

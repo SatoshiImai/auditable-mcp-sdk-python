@@ -135,3 +135,20 @@ async def test_a_degraded_session_keeps_recording_and_the_chain_is_unwitnessed()
     report = verify_ledger(records)
     assert report.complete, 'nothing was applicable and skipped, so the chain is fully checked'
     # end def
+
+
+def test_a_tool_that_requires_a_witness_cannot_degrade() -> None:
+    """Its own host holds no key a registry binds to a host, so every action would abort (§5.2, §6.2)."""
+    requiring = _cap(witness=Witness.HOST)
+    with pytest.raises(ValueError, match='MANDATORY'):
+        transport_for(negotiate(None, requiring), negotiated=_wire(), fallback=_self_hosted())
+        # end with
+    # end def
+
+
+def test_a_tool_that_requires_a_witness_may_still_refuse_to_serve() -> None:
+    """The coherent posture for that requirement is mandatory, and it still works (§6.2)."""
+    with pytest.raises(UnnegotiatedSessionError):
+        transport_for(negotiate(None, _cap(witness=Witness.HOST)), negotiated=_wire(), posture=Posture.MANDATORY)
+        # end with
+    # end def

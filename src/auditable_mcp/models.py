@@ -11,7 +11,7 @@ a local hash input, never a wire object (see `hashing.py`).
 """
 
 from enum import StrEnum
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Final, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, model_validator
 
@@ -19,6 +19,11 @@ from auditable_mcp.canonical import MAX_SAFE_INTEGER
 
 # The only spec version defined by this contract; a mismatch is a hard validation error.
 SPEC_VERSION: Literal['auditable-mcp/0.3'] = 'auditable-mcp/0.3'
+
+# The [SEP-2133] extension identifier this capability is declared under, in the `extensions` member of
+# ClientCapabilities (host) or ServerCapabilities (tool) during MCP `initialize` (§6.1). The identifier
+# names the extension; SPEC_VERSION names the wire version, and the two move independently.
+EXTENSION_ID: Final = 'com.timberlandchapel/auditable-mcp'
 
 # §7.6 Tier-1 code spaces pinned onto the wire contracts. The tool abort reason (on an aborted
 # outcome), the host reject reason, and the unavailable reason are three distinct spaces.

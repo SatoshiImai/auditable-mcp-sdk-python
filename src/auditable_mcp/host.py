@@ -139,6 +139,12 @@ class AuditHost:
         if self._capability.witness == Witness.HOST and witness_signer is None:
             raise ValueError('a host declaring witness "host" requires a WitnessSigner')
             # end if
+        # §7.1: a host that declares `none` MUST NOT return `host_signature` or `host_key_id`. Holding a
+        # signer while declaring `none` is the only way to violate that, so the pair is refused here
+        # rather than silently ignored at seal time.
+        if self._capability.witness == Witness.NONE and witness_signer is not None:
+            raise ValueError('a host declaring witness "none" must not hold a WitnessSigner')
+            # end if
         self._partition = partition
         self._ledger = Ledger(partition)
         self._verifier = verifier
@@ -195,11 +201,19 @@ class AuditHost:
         sealed = self._ledger.seal(event, host_ts)
         if self._witness_signer is not None:
             payload = witness_payload(sealed.seq, sealed.host_ts, sealed.previous_hash, sealed.record_hash)
-            sealed = replace(
-                sealed,
-                host_signature=await self._witness_signer.sign(payload),
-                host_key_id=self._witness_signer.key_id,
-            )
+            try:
+                signature = await self._witness_signer.sign(payload)
+            except Exception:
+                # A host that declared it signs cannot record conformantly without the signature, so a
+                # signer failure is a host-internal failure and fails closed as `unavailable` (§7.1,
+                # §7.6 `internal-error`) - never an exception through the audit path. The catch is broad
+                # on purpose: the signer is injected third-party code (an HSM or KMS client) whose error
+                # types this SDK does not know, and letting any of them escape would leave the tool with
+                # no fail-closed signal at all.
+                _logger.exception('witness signing failed for partition %s; failing closed', self._partition)
+                return None
+                # end try
+            sealed = replace(sealed, host_signature=signature, host_key_id=self._witness_signer.key_id)
             # end if
         if self._repository is not None:
             try:
