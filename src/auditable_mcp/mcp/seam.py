@@ -358,10 +358,12 @@ class McpAuditTransport(_FrameSeam):
 
     def _decision(self, frame: JSONRPCResponse | JSONRPCError) -> AttemptResponse:
         """Read the host's decision, treating anything unreadable as a failure to record (§6, §7.2)."""
-        if isinstance(frame, JSONRPCError):
-            # §6 reserves JSON-RPC errors for protocol faults and requires the tool to read one for an
-            # attempt as a failure to record, exactly as for `unavailable`.
-            logger.warning('audit/attempt %s answered with a JSON-RPC error: %s', frame.id, frame.error.message)
+        # §6 reserves JSON-RPC errors for protocol faults and requires the tool to read one for an
+        # attempt as a failure to record, exactly as for `unavailable`. A frame carrying both members
+        # is not valid JSON-RPC, and the error is what stands: reading the result beside it would let
+        # a malformed answer clear an operation.
+        if isinstance(frame, JSONRPCError) or 'error' in (frame.model_extra or {}):
+            logger.warning('audit/attempt %s answered with a JSON-RPC error', frame.id)
             return unavailable()
             # end if
         try:

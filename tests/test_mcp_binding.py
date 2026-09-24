@@ -551,6 +551,27 @@ class TestWireForm:
         assert decisions[0].status == 'unavailable'
         # end def
 
+    async def test_an_error_beside_a_result_is_still_an_error(self) -> None:
+        """A frame carrying both is not valid JSON-RPC, and reading the result would clear an operation."""
+        decisions: list[AttemptResponse] = []
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write):
+            with anyio.fail_after(1.0):
+                async with anyio.create_task_group() as tasks:
+                    tasks.start_soon(_attempt, transport, {'event_id': 'e1'}, decisions)
+                    frame = (await peer_read.receive()).message.root
+                    both = JSONRPCResponse(
+                        jsonrpc='2.0',
+                        id=frame.id,
+                        result=_ACCEPTED,
+                        error={'code': -32601, 'message': 'unknown method'},
+                    )
+                    await peer_write.send(SessionMessage(message=JSONRPCMessage(both)))
+                    # end async with
+                # end with
+            # end async with
+        assert decisions[0].status == 'unavailable'
+        # end def
+
     async def test_a_decision_the_tool_cannot_read_is_a_decision_it_did_not_get(self) -> None:
         """A result that does not validate leaves the tool with nothing recorded, which is `unavailable`."""
         decisions: list[AttemptResponse] = []
