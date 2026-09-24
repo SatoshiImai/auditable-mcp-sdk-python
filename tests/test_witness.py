@@ -18,6 +18,7 @@ from auditable_mcp.l2 import (
 from auditable_mcp.ledger import SealedRecord
 from auditable_mcp.models import SPEC_VERSION, AcceptResponse, AuditCapability, Level, TargetResource, Witness
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
+from auditable_mcp.verify import verify_ledger
 
 _HOST_KEY_ID = 'host-key-2026'
 
@@ -412,4 +413,78 @@ async def test_a_real_signing_host_and_a_requiring_tool_complete_the_action() ->
         # end async with
     assert ran
     assert all(record.host_signature is not None for record in host.records())
+    # end def
+
+
+async def _witnessed_chain(signer: Ed25519WitnessSigner) -> list[SealedRecord]:
+    """Three attempt/outcome pairs sealed by a host that signs."""
+    host = AuditHost('tenant-a', _capability(Witness.HOST), witness_signer=signer, clock=_Clock())
+    for n in (1, 2, 3):
+        event_id = f'00000000-0000-4000-8000-00000000000{n}'
+        await host.handle_attempt(_event(event_id))
+        await host.handle_outcome(_event(event_id, outcome='success'))
+        # end for
+    return host.records()
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_verifier_with_the_registry_confirms_every_witness() -> None:
+    """With the host key, the chain is both sound and fully checked (§11.4)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    records = await _witnessed_chain(Ed25519WitnessSigner(key.key_id, key.private_key))
+    verifier = _registry_for(_HOST_KEY_ID, key.private_key.public_key())
+    report = verify_ledger(records, witness_checker=verifier.check)
+    assert report.ok
+    assert report.unchecked == ()
+    assert report.complete
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_verifier_without_the_registry_says_it_did_not_check() -> None:
+    """An unchecked signature and a valid one are not the same finding (§11.4)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    records = await _witnessed_chain(Ed25519WitnessSigner(key.key_id, key.private_key))
+    report = verify_ledger(records)
+    assert report.ok, 'the chain itself is sound'
+    assert report.unchecked == ('witness',)
+    assert not report.complete, 'silence must not read as verified'
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_chain_with_no_witness_is_not_reported_as_unchecked() -> None:
+    """Nothing applicable was skipped, so the absence of a registry costs nothing (§5.2, §11.4)."""
+    host = AuditHost('tenant-a', _capability(Witness.NONE), clock=_Clock())
+    await host.handle_attempt(_event('00000000-0000-4000-8000-000000000001'))
+    report = verify_ledger(host.records())
+    assert report.ok
+    assert report.unchecked == ()
+    assert report.complete
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_witness_that_does_not_verify_is_an_anomaly() -> None:
+    """A signature present and failing is reported; absence is a state, not a finding (§11.4)."""
+    key = generate_tool_key(_HOST_KEY_ID)
+    records = await _witnessed_chain(Ed25519WitnessSigner(key.key_id, key.private_key))
+    stranger = generate_tool_key(_HOST_KEY_ID)
+    verifier = _registry_for(_HOST_KEY_ID, stranger.private_key.public_key())
+    report = verify_ledger(records, witness_checker=verifier.check)
+    assert not report.ok
+    assert {issue.kind for issue in report.issues} == {'host-signature-invalid'}
+    assert len(report.issues) == len(records)
+    # end def
+
+
+def test_the_golden_witnessed_chain_verifies_and_reports_its_unchecked_witness(
+    chain_witnessed_vector: dict[str, object],
+) -> None:
+    """The vector's signature is fixed test data, so a verifier without a registry must say so."""
+    records = [SealedRecord.from_dict(record) for record in chain_witnessed_vector['records']]  # type: ignore[union-attr]
+    report = verify_ledger(records, chain_witnessed_vector['digest'])  # type: ignore[arg-type]
+    assert report.ok
+    assert report.unchecked == ('witness',)
     # end def

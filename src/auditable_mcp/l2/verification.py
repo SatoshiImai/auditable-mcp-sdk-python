@@ -178,13 +178,22 @@ class WitnessRegistryVerifier:
         self._hash_algorithm = hash_algorithm
         # end def
 
-    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool:
-        """Return True if the signature verifies against the registered host key (local, no I/O)."""
+    def check(self, host_key_id: str, signature: str, payload: bytes) -> bool:
+        """Return True if the signature verifies against the registered host key (synchronous).
+
+        Offline ledger verification (§11.4) is synchronous and reads stored records, so it uses this
+        directly; `verify` is the async form the tool-side seam expects.
+        """
         entry = self._registry.get(host_key_id)
         if entry is None:
             return False
             # end if
         return verify_detached_signature(payload, signature, entry, self._hash_algorithm)
+        # end def
+
+    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool:
+        """Return True if the signature verifies against the registered host key (local, no I/O)."""
+        return self.check(host_key_id, signature, payload)
         # end def
 
     # end class

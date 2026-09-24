@@ -12,7 +12,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from auditable_mcp import fields, reasons
-from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash
+from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash, witness_payload
 from auditable_mcp.ledger import SealedRecord
 from auditable_mcp.models import Outcome, first_sealed_validation_error
 
@@ -23,6 +23,13 @@ RECORD_HASH_MISMATCH = reasons.RECORD_HASH_MISMATCH
 DIGEST_MISMATCH = reasons.DIGEST_MISMATCH
 PRINCIPAL_MISMATCH = reasons.PRINCIPAL_MISMATCH
 ORPHANED_OUTCOME = reasons.ORPHANED_OUTCOME
+HOST_SIGNATURE_INVALID = reasons.HOST_SIGNATURE_INVALID
+
+
+# Resolves a `host_key_id` and verifies a detached signature over canonical bytes (§7.1). Synchronous
+# because offline ledger verification reads stored records and does no I/O; `WitnessRegistryVerifier.check`
+# is the registry-backed implementation.
+WitnessChecker = Callable[[str, str, bytes], bool]
 
 
 @dataclass(frozen=True)
@@ -37,12 +44,28 @@ class VerifyIssue:
 
 @dataclass(frozen=True)
 class VerifyReport:
-    """The result of verifying a ledger; `ok` is True only when `issues` is empty."""
+    """The result of verifying a ledger.
+
+    `ok` is True when the checks that ran found nothing. It is not the same as having checked
+    everything: witness determination and Level-2 signature re-verification both need an out-of-band
+    registry, and a verifier without one performs neither. §11.4 requires that to be reported rather
+    than left as an absence of anomalies - an unchecked signature and a valid one are not the same
+    finding - so `unchecked` names every check that was applicable and did not run, and `complete`
+    is the answer a caller wants when it means "verified".
+    """
 
     ok: bool
     count: int
     computed_digest: str
     issues: list[VerifyIssue]
+    unchecked: tuple[str, ...] = ()
+
+    @property
+    def complete(self) -> bool:
+        """True when nothing was found and nothing applicable was skipped (§11.4)."""
+        return self.ok and not self.unchecked
+        # end def
+
     # end class
 
 
@@ -110,6 +133,7 @@ def verify_chain(
     *,
     adapter: RecordAdapter = DEFAULT_ADAPTER,
     expected_principal: object | None = None,
+    witness_checker: WitnessChecker | None = None,
 ) -> VerifyReport:
     """Verify chain integrity alone, independent of the event vocabulary (§8.3).
 
@@ -129,6 +153,10 @@ def verify_chain(
             (strict equality); a mismatch, or an absent identity, is flagged as `principal-mismatch`.
             This is an SDK check, not an a-MCP anomaly: it detects a cross-partition transplant only
             when records are sealed inside an identity-binding envelope. None (default) skips it.
+        witness_checker: Resolves a `host_key_id` and verifies a witness signature over the canonical
+            host-assigned fields (§7.1). A record carrying no signature is unwitnessed, which is a
+            state and not an anomaly (§5.2); one whose signature fails is `host-signature-invalid`.
+            Without a checker, records that do carry signatures are counted in `unchecked` (§11.4).
 
     Returns:
         A report; `ok` is True only when no issues were found.
@@ -136,6 +164,7 @@ def verify_chain(
     issues: list[VerifyIssue] = []
     attempted_ids: set[object] = set()
     prev_recomputed = GENESIS_HASH
+    witness_unchecked = False
 
     for index, record in enumerate(records):
         event = record.event
@@ -193,6 +222,24 @@ def verify_chain(
             )
             # end if
 
+        # Witness determination (§11.4): by the signature alone, never inferred from another field.
+        if record.host_signature is not None and record.host_key_id is not None:
+            if witness_checker is None:
+                witness_unchecked = True
+            else:
+                payload = witness_payload(record.seq, record.host_ts, record.previous_hash, record.record_hash)
+                if not witness_checker(record.host_key_id, record.host_signature, payload):
+                    issues.append(
+                        VerifyIssue(
+                            seq=record.seq,
+                            kind=HOST_SIGNATURE_INVALID,
+                            detail=f'witness signature does not verify for host_key_id {record.host_key_id!r}',
+                        )
+                    )
+                    # end if
+                # end if
+            # end if
+
         prev_recomputed = recomputed
         # end for
 
@@ -205,7 +252,13 @@ def verify_chain(
         )
         # end if
 
-    return VerifyReport(ok=len(issues) == 0, count=len(records), computed_digest=computed_digest, issues=issues)
+    return VerifyReport(
+        ok=len(issues) == 0,
+        count=len(records),
+        computed_digest=computed_digest,
+        issues=issues,
+        unchecked=('witness',) if witness_unchecked else (),
+    )
     # end def
 
 
@@ -215,6 +268,7 @@ def verify_ledger(
     *,
     adapter: RecordAdapter = DEFAULT_ADAPTER,
     expected_principal: object | None = None,
+    witness_checker: WitnessChecker | None = None,
 ) -> VerifyReport:
     """Verify chain integrity and A-MCP event-schema conformance (§8.3 + §7.1).
 
@@ -235,7 +289,13 @@ def verify_ledger(
     Returns:
         A report; `ok` is True only when no issues were found.
     """
-    report = verify_chain(records, anchored_digest, adapter=adapter, expected_principal=expected_principal)
+    report = verify_chain(
+        records,
+        anchored_digest,
+        adapter=adapter,
+        expected_principal=expected_principal,
+        witness_checker=witness_checker,
+    )
     schema_issues = [
         VerifyIssue(seq=record.seq, kind=reasons.SCHEMA_INVALID, detail=error)
         for record in records
