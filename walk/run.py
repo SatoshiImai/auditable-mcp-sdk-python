@@ -171,7 +171,18 @@ CASES: list[Case] = [
         expect_call_error=True,
     ),
     Case(
-        'a-tool-that-requires-a-witness-will-not-degrade',
+        # The degraded posture is the default, so this is the case the guard exists for: the tool's
+        # own host holds no key a verifier's registry binds to a host, and every action would abort
+        # `host-unwitnessed` while the tool went on serving (§5.2, §6.2).
+        'a-tool-that-requires-a-witness-refuses-to-degrade',
+        {'WALK_LEVEL': 'L1', 'WALK_TOOL_WITNESS': 'host'},
+        audited=False,
+        expect_negotiated=False,
+        expect_records=0,
+        expect_call_error=True,
+    ),
+    Case(
+        'a-tool-that-requires-a-witness-may-still-refuse-to-serve',
         {'WALK_LEVEL': 'L1', 'WALK_TOOL_WITNESS': 'host', 'WALK_POSTURE': 'mandatory'},
         audited=False,
         expect_negotiated=False,
@@ -342,7 +353,9 @@ async def _run(case: Case) -> Case:
         await _connect(case, host, tool_key, private_key_b64, calls, start_signer_seq)
         # end for
 
-    records = store.rows if store.rows else host.records()
+    # The chain the walk reads is the persisted one. Falling back to this process's in-memory records
+    # when the store is empty would let a host that never wrote anything pass every case.
+    records = store.rows
     if case.expect_records >= 0 and len(records) != case.expect_records:
         case.findings.append(f'ledger holds {len(records)} records, expected {case.expect_records}')
         # end if
