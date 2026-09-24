@@ -638,3 +638,34 @@ def test_a_schema_issue_does_not_erase_what_was_left_unchecked() -> None:
     assert 'schema-invalid' in {issue.kind for issue in report.issues}
     assert report.unchecked == ('witness',)
     # end def
+
+
+def test_the_whole_witness_axis_is_on_the_public_surface() -> None:
+    """Every analogous name for the level axis is exported; an integrator implements these seams.
+
+    `Witness` is the sharpest case: the capability REQUIRES the field, so a user who cannot import the
+    enum has to write the string. The rest mirror names the package already exports for Level 2 -
+    `Ed25519Signer`, `KeyRegistryVerifier`, `compute_record_hash`, `EventSigner`, `SignatureVerifier`.
+    """
+    import auditable_mcp
+
+    expected = {
+        'EXTENSION_ID',
+        'Ed25519WitnessSigner',
+        'Posture',
+        'UnnegotiatedSessionError',
+        'Witness',
+        'WitnessChecker',
+        'WitnessRegistryVerifier',
+        'WitnessSigner',
+        'WitnessVerifier',
+        'transport_for',
+        'verify_detached_signature',
+        'witness_payload',
+        'witness_satisfies',
+    }
+    assert expected <= set(auditable_mcp.__all__), sorted(expected - set(auditable_mcp.__all__))
+    for name in expected:
+        assert hasattr(auditable_mcp, name), name
+        # end for
+    # end def
