@@ -5,7 +5,7 @@ import pytest
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger
-from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Level
+from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Level, Witness
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
 from auditable_mcp.transport import accept, reject, unavailable
 from auditable_mcp.verify import verify_ledger
@@ -51,7 +51,9 @@ class _SealingEndpoint:
 
     def __init__(self, level: Level = Level.L1) -> None:
         """Initialize an empty ledger and a monotonic host clock."""
-        self._capability = AuditCapability(spec_version=SPEC_VERSION, level=level, attempt='request')
+        self._capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=level, attempt='request', witness=Witness.NONE
+        )
         self.ledger = Ledger('test')
         self._clock = 0
         self.outcomes: list[dict[str, object]] = []
@@ -87,7 +89,9 @@ class _CannedEndpoint:
 
     def __init__(self, response: AttemptResponse, level: Level = Level.L1) -> None:
         """Configure the canned attempt response."""
-        self._capability = AuditCapability(spec_version=SPEC_VERSION, level=level, attempt='request')
+        self._capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=level, attempt='request', witness=Witness.NONE
+        )
         self._response = response
         self.outcomes: list[dict[str, object]] = []
         # end def

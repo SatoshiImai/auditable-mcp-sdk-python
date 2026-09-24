@@ -15,11 +15,11 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from auditable_mcp.models import AuditCapability, first_validation_error
+from auditable_mcp.models import SPEC_VERSION, AuditCapability, first_validation_error
 
 _VALID_BASE: dict[str, Any] = {
     'id': '00000000-0000-4000-8000-000000000001',
-    'spec_version': 'auditable-mcp/0.2',
+    'spec_version': SPEC_VERSION,
     'ts': '2026-07-15T00:00:01.000Z',
     'call_id': 'call_abc',
     'action_type': 'db.read',
@@ -81,10 +81,10 @@ def test_pydantic_acceptance_matches_the_vendored_schema(event_schema_validator:
     # end def
 
 
-_CAP_VALID: dict[str, Any] = {'spec_version': 'auditable-mcp/0.2', 'level': 'L1', 'attempt': 'request'}
+_CAP_VALID: dict[str, Any] = {'spec_version': SPEC_VERSION, 'level': 'L1', 'attempt': 'request', 'witness': 'none'}
 
-# (name, capability, expected_valid) — all three fields REQUIRED (§6.1): a missing one is rejected, not
-# defaulted, so a peer cannot bypass version negotiation by omission.
+# (name, capability, expected_valid) — all four fields REQUIRED (§6.1): a missing one is rejected, not
+# defaulted, so a peer cannot bypass version or witness negotiation by omission.
 _CAP_SAMPLES: list[tuple[str, dict[str, Any], bool]] = [
     ('cap-valid', _CAP_VALID, True),
     ('cap-l2', {**_CAP_VALID, 'level': 'L2'}, True),
@@ -93,6 +93,9 @@ _CAP_SAMPLES: list[tuple[str, dict[str, Any], bool]] = [
     ('cap-missing-attempt', {key: value for key, value in _CAP_VALID.items() if key != 'attempt'}, False),
     ('cap-bad-level', {**_CAP_VALID, 'level': 'L3'}, False),
     ('cap-bad-attempt', {**_CAP_VALID, 'attempt': 'response'}, False),
+    ('cap-witness-host', {**_CAP_VALID, 'witness': 'host'}, True),
+    ('cap-missing-witness', {key: value for key, value in _CAP_VALID.items() if key != 'witness'}, False),
+    ('cap-bad-witness', {**_CAP_VALID, 'witness': 'self'}, False),
     ('cap-extra-property', {**_CAP_VALID, 'surprise': 'boom'}, False),
 ]
 

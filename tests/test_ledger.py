@@ -4,13 +4,14 @@ from typing import Any
 
 from auditable_mcp.hashing import GENESIS_HASH
 from auditable_mcp.ledger import Ledger, SealedRecord
+from auditable_mcp.models import SPEC_VERSION
 
 
 def _attempt(event_id: str) -> dict[str, object]:
     """Build a minimal attempt wire event."""
     return {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',

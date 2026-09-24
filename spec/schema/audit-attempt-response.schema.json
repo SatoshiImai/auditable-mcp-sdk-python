@@ -25,6 +25,14 @@
         "previous_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "host_signature": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+        },
+        "host_key_id": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -34,7 +42,15 @@
         "host_ts",
         "previous_hash"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "dependentRequired": {
+        "host_signature": [
+          "host_key_id"
+        ],
+        "host_key_id": [
+          "host_signature"
+        ]
+      }
     },
     {
       "type": "object",

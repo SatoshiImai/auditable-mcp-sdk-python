@@ -15,12 +15,20 @@
     "attempt": {
       "type": "string",
       "const": "request"
+    },
+    "witness": {
+      "type": "string",
+      "enum": [
+        "none",
+        "host"
+      ]
     }
   },
   "required": [
     "spec_version",
     "level",
-    "attempt"
+    "attempt",
+    "witness"
   ],
   "additionalProperties": false
 }

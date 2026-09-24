@@ -30,6 +30,7 @@ from auditable_mcp.models import (
     Level,
     Outcome,
     RejectReason,
+    Witness,
     first_validation_error,
 )
 from auditable_mcp.storage.repository import LedgerRepository, RepositoryError
@@ -71,6 +72,7 @@ _HOST_CAPABILITY_DEFAULTS: Final[dict[str, object]] = {
     'spec_version': SPEC_VERSION,
     'level': Level.L1,
     'attempt': 'request',
+    'witness': Witness.NONE,
 }
 
 

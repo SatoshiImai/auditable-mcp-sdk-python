@@ -12,6 +12,7 @@ from auditable_mcp.models import (
     AuditCapability,
     Level,
     UnavailableResponse,
+    Witness,
 )
 from auditable_mcp.transport import AuditEndpoint, AuditTransport, accept, reject, unavailable
 
@@ -21,7 +22,9 @@ class _RecordingEndpoint:
 
     def __init__(self, level: Level = Level.L1, response: AttemptResponse | None = None) -> None:
         """Configure the required level and the canned attempt response."""
-        self._capability = AuditCapability(spec_version=SPEC_VERSION, level=level, attempt='request')
+        self._capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=level, attempt='request', witness=Witness.NONE
+        )
         self._response = response or accept(0, 'a' * 64, '2026-07-15T00:00:01.000Z', '0' * 64)
         self.attempts: list[dict[str, object]] = []
         self.outcomes: list[dict[str, object]] = []
@@ -48,8 +51,8 @@ class _RecordingEndpoint:
 def test_l2_tool_satisfies_an_l1_host() -> None:
     """An L2 offer is a safe downgrade for an L1 requirement."""
     result = negotiate(
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request'),
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
     )
     assert result.satisfied
     # end def
@@ -58,8 +61,8 @@ def test_l2_tool_satisfies_an_l1_host() -> None:
 def test_l1_tool_does_not_satisfy_an_l2_host() -> None:
     """An L1-only tool cannot meet an L2 requirement."""
     result = negotiate(
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE),
     )
     assert not result.satisfied
     # end def
@@ -68,8 +71,8 @@ def test_l1_tool_does_not_satisfy_an_l2_host() -> None:
 def test_equal_levels_are_satisfied() -> None:
     """Matching levels negotiate successfully."""
     assert negotiate(
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
     ).satisfied
     # end def
 
@@ -90,7 +93,7 @@ def test_in_process_transport_negotiates_against_the_endpoint() -> None:
     """The transport uses the endpoint's required capability for negotiation."""
     transport = InProcessTransport(_RecordingEndpoint(level=Level.L2))
     assert not transport.negotiate(
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request')
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE)
     ).satisfied
     # end def
 
@@ -105,8 +108,10 @@ def test_capability_missing_spec_version_is_rejected() -> None:
 
 def test_version_mismatch_is_not_satisfied() -> None:
     """A spec_version mismatch withholds satisfaction even at a compatible level (§6.1)."""
-    offered = AuditCapability(spec_version='auditable-mcp/0.1', level=Level.L1, attempt='request')
-    result = negotiate(AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request'), offered)
+    offered = AuditCapability(spec_version='auditable-mcp/0.1', level=Level.L1, attempt='request', witness=Witness.NONE)
+    result = negotiate(
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE), offered
+    )
     assert result.version_match is False
     assert result.satisfied is False
     # end def

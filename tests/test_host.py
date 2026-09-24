@@ -11,6 +11,7 @@ from auditable_mcp.models import (
     Level,
     RejectResponse,
     UnavailableResponse,
+    Witness,
 )
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.verify import verify_ledger
@@ -88,7 +89,7 @@ def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
@@ -224,7 +225,10 @@ async def test_aborted_outcome_without_attempt_is_not_an_anomaly() -> None:
 def test_l2_host_requires_a_verifier() -> None:
     """Constructing an L2 host without a verifier fails fast."""
     with pytest.raises(ValueError):
-        AuditHost('tenant-a', AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'))
+        AuditHost(
+            'tenant-a',
+            AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
+        )
         # end with
     # end def
 
@@ -241,7 +245,7 @@ def _l2_host(verifier: object) -> AuditHost:
     """Build an L2 host with the given verifier."""
     return AuditHost(
         'tenant-a',
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
         verifier=verifier,
         clock=_Clock(),
     )  # type: ignore[arg-type]

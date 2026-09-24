@@ -9,7 +9,7 @@ from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2.adapters.aws_kms import AwsKmsSigner, AwsKmsVerifier
 from auditable_mcp.l2.keys import KeyRegistry
-from auditable_mcp.models import SPEC_VERSION, AuditCapability, Level
+from auditable_mcp.models import SPEC_VERSION, AuditCapability, Level, Witness
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.verify import verify_ledger
 
@@ -76,7 +76,7 @@ def _event() -> dict[str, object]:
     """Build a wire attempt event."""
     return {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
@@ -134,7 +134,7 @@ async def test_end_to_end_kms_without_stubs() -> None:
     verifier = await AwsKmsVerifier.from_kms(client, {'tool-1': 'arn:aws:kms:tool'})
     host = AuditHost(
         'tenant-a',
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', witness=Witness.NONE),
         verifier=verifier,
         clock=_Clock(),
     )

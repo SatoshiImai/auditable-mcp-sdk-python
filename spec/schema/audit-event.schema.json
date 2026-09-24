@@ -9,7 +9,7 @@
     },
     "spec_version": {
       "type": "string",
-      "const": "auditable-mcp/0.2"
+      "const": "auditable-mcp/0.3"
     },
     "ts": {
       "type": "string",
@@ -68,7 +68,9 @@
       "enum": [
         "hash-mismatch",
         "host-rejected",
-        "host-unavailable"
+        "host-unavailable",
+        "host-unwitnessed",
+        "host-signature-invalid"
       ]
     },
     "action_context": {

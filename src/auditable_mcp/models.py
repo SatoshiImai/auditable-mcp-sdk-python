@@ -18,11 +18,13 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, 
 from auditable_mcp.canonical import MAX_SAFE_INTEGER
 
 # The only spec version defined by this contract; a mismatch is a hard validation error.
-SPEC_VERSION: Literal['auditable-mcp/0.2'] = 'auditable-mcp/0.2'
+SPEC_VERSION: Literal['auditable-mcp/0.3'] = 'auditable-mcp/0.3'
 
 # §7.6 Tier-1 code spaces pinned onto the wire contracts. The tool abort reason (on an aborted
 # outcome), the host reject reason, and the unavailable reason are three distinct spaces.
-AbortReason = Literal['hash-mismatch', 'host-rejected', 'host-unavailable']
+AbortReason = Literal[
+    'hash-mismatch', 'host-rejected', 'host-unavailable', 'host-unwitnessed', 'host-signature-invalid'
+]
 RejectReason = Literal['schema-invalid', 'replay-detected', 'signature-invalid', 'l2-unsigned', 'unknown-key']
 
 # Patterns copied verbatim from the normative JSON Schema (spec/schema/), applied to `str` fields so
@@ -60,6 +62,18 @@ class Level(StrEnum):
 
     L1 = 'L1'
     L2 = 'L2'
+    # end class
+
+
+class Witness(StrEnum):
+    """What a participant declares on the witness axis (§5.2, §6.1).
+
+    Unlike `Level`, the obligation on this axis falls on the host: `HOST` means records in this session
+    carry a witness signature - a host declaring it will sign, a tool declaring it requires one.
+    """
+
+    NONE = 'none'
+    HOST = 'host'
     # end class
 
 
@@ -109,7 +123,7 @@ class AuditEvent(WireModel):
 
     id: str = Field(pattern=UUID_PATTERN)
     # REQUIRED and hashed into the canonical bytes (§4): a defaulted-in version would fork the chain.
-    spec_version: Literal['auditable-mcp/0.2']
+    spec_version: Literal['auditable-mcp/0.3']
     ts: str = Field(pattern=DATETIME_PATTERN)
     call_id: str = Field(min_length=1)
     traceparent: str | None = None
@@ -142,7 +156,7 @@ class AuditEvent(WireModel):
 # pinned to the current SPEC_VERSION (AuditEvent, §6.1); a verifier reading a stored ledger must accept
 # records sealed under an earlier published version, since their bytes and hash chain are immutable
 # evidence. Keep this tuple in sync with the SealedAuditEvent literal below.
-KNOWN_SPEC_VERSIONS = ('auditable-mcp/0.1', 'auditable-mcp/0.1.1', 'auditable-mcp/0.2')
+KNOWN_SPEC_VERSIONS = ('auditable-mcp/0.1', 'auditable-mcp/0.1.1', 'auditable-mcp/0.2', 'auditable-mcp/0.3')
 
 
 class SealedAuditEvent(AuditEvent):
@@ -150,7 +164,7 @@ class SealedAuditEvent(AuditEvent):
 
     # Deliberately widens the parent's pinned literal. This model only validates stored records; it is
     # never substituted where the strict wire AuditEvent is required, so the widening is safe.
-    spec_version: Literal['auditable-mcp/0.1', 'auditable-mcp/0.1.1', 'auditable-mcp/0.2']  # type: ignore[assignment]
+    spec_version: Literal['auditable-mcp/0.1', 'auditable-mcp/0.1.1', 'auditable-mcp/0.2', 'auditable-mcp/0.3']  # type: ignore[assignment]
     # end class
 
 
@@ -163,6 +177,7 @@ class AuditCapability(WireModel):
     spec_version: str = Field(min_length=1)
     level: Annotated[Level, Field(strict=False)]
     attempt: Literal['request']
+    witness: Annotated[Witness, Field(strict=False)]
     # end class
 
 
@@ -172,6 +187,7 @@ class AuditCapabilityInput(TypedDict, total=False):
     spec_version: str
     level: Level
     attempt: Literal['request']
+    witness: Witness
     # end class
 
 
@@ -183,6 +199,21 @@ class AcceptResponse(WireModel):
     record_hash: str = Field(pattern=CHAIN_HASH_PATTERN)
     host_ts: str = Field(pattern=DATETIME_PATTERN)
     previous_hash: str = Field(pattern=CHAIN_HASH_PATTERN)
+    # The witness signature (§7.1): present exactly when the host declares `witness: "host"`. The two
+    # fields appear together or not at all - a signature no key names is unverifiable, and a key naming
+    # no signature establishes nothing.
+    host_signature: str | None = Field(default=None, pattern=SIGNATURE_PATTERN)
+    host_key_id: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode='after')
+    def _witness_fields_are_paired(self) -> 'AcceptResponse':
+        """Reject a half-present witness signature (§7.1, schema `dependentRequired`)."""
+        if (self.host_signature is None) != (self.host_key_id is None):
+            raise ValueError('host_signature and host_key_id must appear together or not at all')
+            # end if
+        return self
+        # end def
+
     # end class
 
 

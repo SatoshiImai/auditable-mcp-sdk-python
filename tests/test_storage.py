@@ -8,7 +8,7 @@ from auditable_mcp.hashing import GENESIS_HASH
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger, SealedRecord
-from auditable_mcp.models import AcceptResponse, RejectResponse, UnavailableResponse
+from auditable_mcp.models import SPEC_VERSION, AcceptResponse, RejectResponse, UnavailableResponse
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.storage import InMemoryLedgerRepository, RepositoryError
 from auditable_mcp.verify import verify_ledger
@@ -82,7 +82,7 @@ def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',

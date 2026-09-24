@@ -4,7 +4,7 @@ import dataclasses
 from typing import Any, cast
 
 from auditable_mcp.ledger import Ledger, SealedRecord
-from auditable_mcp.models import first_sealed_validation_error, first_validation_error
+from auditable_mcp.models import SPEC_VERSION, first_sealed_validation_error, first_validation_error
 from auditable_mcp.verify import RecordAdapter, verify_chain, verify_ledger
 
 
@@ -12,7 +12,7 @@ def _event(event_id: str, outcome: str = 'attempted', **overrides: object) -> di
     """Build a wire event with an overridable outcome and fields."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',

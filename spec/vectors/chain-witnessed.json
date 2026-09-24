@@ -25,7 +25,13 @@
       "seq": 0,
       "host_ts": "2026-07-15T00:00:01.000Z",
       "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-      "record_hash": "efe3ab8b571e06d19049813a6c6e05fae8656104199479002025059e97e5469c"
+      "record_hash": "efe3ab8b571e06d19049813a6c6e05fae8656104199479002025059e97e5469c",
+      "host_key_id": "host-key-2026",
+      "host_signature": "ZmFrZS13aXRuZXNzLXNpZ25hdHVyZQ==",
+      "witness_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:01.000Z\",\"previous_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"record_hash\":\"efe3ab8b571e06d19049813a6c6e05fae8656104199479002025059e97e5469c\",\"seq\":0}",
+        "sha256": "86d43f2328d4c0fdf91022690f9e262ce8eef8f07eaf5954dde86f716e77110a"
+      }
     },
     {
       "event": {
@@ -52,7 +58,13 @@
       "seq": 1,
       "host_ts": "2026-07-15T00:00:02.000Z",
       "previous_hash": "efe3ab8b571e06d19049813a6c6e05fae8656104199479002025059e97e5469c",
-      "record_hash": "ac6d7e3487539cb46410028795fc3a4e8296015c1fbb5d926e247d68dc6c56ea"
+      "record_hash": "ac6d7e3487539cb46410028795fc3a4e8296015c1fbb5d926e247d68dc6c56ea",
+      "host_key_id": "host-key-2026",
+      "host_signature": "ZmFrZS13aXRuZXNzLXNpZ25hdHVyZQ==",
+      "witness_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:02.000Z\",\"previous_hash\":\"efe3ab8b571e06d19049813a6c6e05fae8656104199479002025059e97e5469c\",\"record_hash\":\"ac6d7e3487539cb46410028795fc3a4e8296015c1fbb5d926e247d68dc6c56ea\",\"seq\":1}",
+        "sha256": "a89c4dbc8cfe59b8033854b05d072ceef1a73011004e268c5781469e22c1dad9"
+      }
     },
     {
       "event": {
@@ -75,7 +87,13 @@
       "seq": 2,
       "host_ts": "2026-07-15T00:00:03.000Z",
       "previous_hash": "ac6d7e3487539cb46410028795fc3a4e8296015c1fbb5d926e247d68dc6c56ea",
-      "record_hash": "81542eafdf8f525d436d9f5bf139b4131f9321d2675726083864fb9b6e960000"
+      "record_hash": "81542eafdf8f525d436d9f5bf139b4131f9321d2675726083864fb9b6e960000",
+      "host_key_id": "host-key-2026",
+      "host_signature": "ZmFrZS13aXRuZXNzLXNpZ25hdHVyZQ==",
+      "witness_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:03.000Z\",\"previous_hash\":\"ac6d7e3487539cb46410028795fc3a4e8296015c1fbb5d926e247d68dc6c56ea\",\"record_hash\":\"81542eafdf8f525d436d9f5bf139b4131f9321d2675726083864fb9b6e960000\",\"seq\":2}",
+        "sha256": "dd8e3401b5056d828bbf1d8ddcd1facd6f278491257fb50061c1f54993a0140e"
+      }
     },
     {
       "event": {
@@ -98,7 +116,13 @@
       "seq": 3,
       "host_ts": "2026-07-15T00:00:04.000Z",
       "previous_hash": "81542eafdf8f525d436d9f5bf139b4131f9321d2675726083864fb9b6e960000",
-      "record_hash": "f0efc9b3a1f951937ba3756ed1aace371a512d4cf1d72284e3b2029545b8c4c4"
+      "record_hash": "f0efc9b3a1f951937ba3756ed1aace371a512d4cf1d72284e3b2029545b8c4c4",
+      "host_key_id": "host-key-2026",
+      "host_signature": "ZmFrZS13aXRuZXNzLXNpZ25hdHVyZQ==",
+      "witness_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:04.000Z\",\"previous_hash\":\"81542eafdf8f525d436d9f5bf139b4131f9321d2675726083864fb9b6e960000\",\"record_hash\":\"f0efc9b3a1f951937ba3756ed1aace371a512d4cf1d72284e3b2029545b8c4c4\",\"seq\":3}",
+        "sha256": "e465535d34c54e63e0c400d425ee45365795501d526fe676182c2a6cc41de5b9"
+      }
     },
     {
       "event": {
@@ -118,7 +142,13 @@
       "seq": 4,
       "host_ts": "2026-07-15T00:00:05.000Z",
       "previous_hash": "f0efc9b3a1f951937ba3756ed1aace371a512d4cf1d72284e3b2029545b8c4c4",
-      "record_hash": "22ff0fa2ef2aaa9ffe54cccf12211dac03b63d23f7cdcef90141336ee0a0ed44"
+      "record_hash": "22ff0fa2ef2aaa9ffe54cccf12211dac03b63d23f7cdcef90141336ee0a0ed44",
+      "host_key_id": "host-key-2026",
+      "host_signature": "ZmFrZS13aXRuZXNzLXNpZ25hdHVyZQ==",
+      "witness_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:05.000Z\",\"previous_hash\":\"f0efc9b3a1f951937ba3756ed1aace371a512d4cf1d72284e3b2029545b8c4c4\",\"record_hash\":\"22ff0fa2ef2aaa9ffe54cccf12211dac03b63d23f7cdcef90141336ee0a0ed44\",\"seq\":4}",
+        "sha256": "e16d470f45590e69bec17669fec15180161c4979e085463ed69c89577559bff2"
+      }
     },
     {
       "event": {
@@ -138,7 +168,13 @@
       "seq": 5,
       "host_ts": "2026-07-15T00:00:06.000Z",
       "previous_hash": "22ff0fa2ef2aaa9ffe54cccf12211dac03b63d23f7cdcef90141336ee0a0ed44",
-      "record_hash": "d2b8674f604cc45f465fc5b84fb4c7f59c830a093577606d348d7ab2168100c9"
+      "record_hash": "d2b8674f604cc45f465fc5b84fb4c7f59c830a093577606d348d7ab2168100c9",
+      "host_key_id": "host-key-2026",
+      "host_signature": "ZmFrZS13aXRuZXNzLXNpZ25hdHVyZQ==",
+      "witness_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:06.000Z\",\"previous_hash\":\"22ff0fa2ef2aaa9ffe54cccf12211dac03b63d23f7cdcef90141336ee0a0ed44\",\"record_hash\":\"d2b8674f604cc45f465fc5b84fb4c7f59c830a093577606d348d7ab2168100c9\",\"seq\":5}",
+        "sha256": "9172c880d40dba9ea0145a888ff2f2bebf328b217b54a56044fb419be28e48b5"
+      }
     }
   ],
   "digest": "d2b8674f604cc45f465fc5b84fb4c7f59c830a093577606d348d7ab2168100c9"
