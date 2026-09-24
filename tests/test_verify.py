@@ -266,7 +266,11 @@ def test_sequence_gap_is_detected() -> None:
         # end for
     records = ledger.records()
     del records[1]  # drop the middle record: seqs become [0, 2]
-    assert 'seq-gap' in _kinds(records)
+    report = verify_ledger(records)
+    assert 'seq-gap' in {issue.kind for issue in report.issues}
+    # The survivor's stored link points at the record that is gone, which localizes the drop to the
+    # boundary rather than only saying the chain no longer recomputes.
+    assert any('previous_hash does not link' in issue.detail for issue in report.issues)
     # end def
 
 
