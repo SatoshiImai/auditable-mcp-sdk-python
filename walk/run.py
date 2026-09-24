@@ -38,11 +38,13 @@ from auditable_mcp import (
 )
 from auditable_mcp.l2 import (
     Ed25519WitnessSigner,
+    EgressObservation,
     KeyRegistry,
     KeyRegistryVerifier,
     KeyRole,
     ToolKey,
     generate_tool_key,
+    reconcile,
 )
 from auditable_mcp.mcp import McpAuditReceiver, capability_of
 
@@ -105,6 +107,11 @@ class Case:
     sequential_calls: int = 1
     host_fails_after: int = 0
     expect_local_verifies: bool = True
+    # Restart the host from its persisted chain between calls, the way a deployment restarts (§7.1).
+    resume_after_call: int = 0
+    # Destinations the boundary observed; §7.5 flags any the tool did not report (§7.6).
+    observed_egress: tuple[str, ...] = ()
+    expect_unreported: int = 0
     expect_call_error: bool = False
     expect_tool_death: bool = False
     death: str = ''
@@ -205,6 +212,34 @@ CASES: list[Case] = [
         host_level=Level.L2,
         expect_records=16,
     ),
+    Case(
+        'the-host-restarts-mid-connection',
+        {'WALK_LEVEL': 'L2'},
+        host_level=Level.L2,
+        sequential_calls=4,
+        resume_after_call=2,
+        expect_records=OPERATIONS * 2 * 4,
+    ),
+    Case(
+        'crosslang-ts-tool-the-host-restarts',
+        {'WALK_LEVEL': 'L2'},
+        tool='typescript',
+        host_level=Level.L2,
+        sequential_calls=4,
+        resume_after_call=2,
+        expect_records=OPERATIONS * 2 * 4,
+    ),
+    Case(
+        'the-boundary-sees-what-the-tool-reported',
+        {'WALK_LEVEL': 'L1', 'WALK_EGRESS_EVERY': '2'},
+        observed_egress=('customers_0', 'customers_2'),
+    ),
+    Case(
+        'the-boundary-sees-an-egress-the-tool-never-reported',
+        {'WALK_LEVEL': 'L1', 'WALK_EGRESS_EVERY': '2', 'WALK_UNREPORTED_EGRESS': '1'},
+        observed_egress=('customers_0', 'customers_2'),
+        expect_unreported=1,
+    ),
     Case('crosslang-ts-tool-l1', {'WALK_LEVEL': 'L1'}, tool='typescript'),
     Case('crosslang-ts-tool-l2', {'WALK_LEVEL': 'L2'}, tool='typescript', host_level=Level.L2),
     Case(
@@ -285,42 +320,29 @@ def _host(case: Case, tool_key: ToolKey) -> tuple[AuditHost, _Store]:
 
 
 async def _run(case: Case) -> Case:
-    """Start the tool, call it, and read the ledger it wrote."""
+    """Start the tool, call it, and read the ledger it wrote.
+
+    A case with `resume_after_call` runs two connections against one store: the host is torn down
+    after the first and rebuilt from its persisted chain for the second, which is what a restart is.
+    The chain has to continue across it - the same `seq` counter, the same tail link - or the walk
+    is not watching the thing §7.1's durable lifecycle exists for.
+    """
     tool_key, private_key_b64 = _onboard()
     host, store = _host(case, tool_key)
-    command, args = (sys.executable, [str(TOOL)])
-    if case.tool == 'typescript':
-        command, args = ('npx', ['tsx', str(TS_TOOL)])
-        # end if
-    parameters = StdioServerParameters(
-        command=command,
-        args=args,
-        env={
-            **os.environ,
-            'WALK_OPERATIONS': str(OPERATIONS),
-            'WALK_TOOL_KEY_ID': tool_key.key_id,
-            'WALK_TOOL_PRIVATE_KEY': private_key_b64,
-            **case.environment,
-        },
+    segments = (
+        [case.resume_after_call, case.sequential_calls - case.resume_after_call]
+        if case.resume_after_call
+        else [case.sequential_calls]
     )
-    async with stdio_client(parameters) as (read_stream, write_stream):
-        try:
-            if case.audited:
-                async with McpAuditReceiver(read_stream, write_stream, host) as receiver:
-                    await _call(case, receiver.read_stream, receiver.write_stream, host)
-                    # end async with
-            else:
-                await _call(case, read_stream, write_stream, host)
-                # end if
-        except BaseException as error:  # noqa: BLE001 - a dying tool takes the session with it
-            if not case.expect_tool_death:
-                raise
-                # end if
-            case.death = case.death or repr(error)[:120]
-            # end try
-        # end async with
+    for index, calls in enumerate(segments):
+        if index:
+            host = await _resumed(case, host, store, tool_key)
+            # end if
+        start_signer_seq = _next_signer_seq(store)
+        await _connect(case, host, tool_key, private_key_b64, calls, start_signer_seq)
+        # end for
 
-    records = host.records()
+    records = store.rows if store.rows else host.records()
     if case.expect_records >= 0 and len(records) != case.expect_records:
         case.findings.append(f'ledger holds {len(records)} records, expected {case.expect_records}')
         # end if
@@ -353,7 +375,22 @@ async def _run(case: Case) -> Case:
         if case.host_witness == Witness.HOST and any(r.host_signature is None for r in records):
             case.findings.append('a witnessing host left a record unsigned (§7.1)')
             # end if
-        if [row.record_hash for row in store.rows] != [record.record_hash for record in records]:
+        if case.observed_egress:
+            observations = [EgressObservation(call_id='walk-call-0', destination=ref) for ref in case.observed_egress]
+            anomalies = reconcile(records, observations, 'walk-call-0')
+            if len(anomalies) != case.expect_unreported:
+                case.findings.append(
+                    f'§7.5 reconciliation found {len(anomalies)} unreported egress, expected {case.expect_unreported}'
+                )
+                # end if
+            if anomalies and any(anomaly.kind != 'unreported-egress' for anomaly in anomalies):
+                case.findings.append(f'the wrong anomaly kind: {[a.kind for a in anomalies]}')
+                # end if
+            # end if
+        sealed_here = host.records()
+        if sealed_here and [row.record_hash for row in records[-len(sealed_here) :]] != [
+            record.record_hash for record in sealed_here
+        ]:
             case.findings.append('the durable store and the in-memory chain disagree')
             # end if
         # end if
@@ -361,7 +398,75 @@ async def _run(case: Case) -> Case:
     # end def
 
 
-async def _call(case: Case, read_stream: object, write_stream: object, host: AuditHost) -> None:
+def _next_signer_seq(store: _Store) -> int:
+    """The `signer_seq` a restarting tool must continue from (§7.4).
+
+    A fresh process starting again at zero is a replay to the host, correctly: `signer_seq` is the
+    tool's own monotonic counter per `key_id`, so a tool that restarts either continues it or takes
+    a new `key_id` (§10.9). Here the deployment hands it back, which is the continuity case.
+    """
+    seen = [row.event.get('signer_seq') for row in store.rows if isinstance(row.event.get('signer_seq'), int)]
+    return max(seen) + 1 if seen else 0
+    # end def
+
+
+async def _connect(
+    case: Case, host: AuditHost, tool_key: ToolKey, secret: str, calls: int, start_signer_seq: int
+) -> None:
+    """Run one connection to a fresh tool process, making `calls` tool calls over it."""
+    command, args = (sys.executable, [str(TOOL)])
+    if case.tool == 'typescript':
+        command, args = ('npx', ['tsx', str(TS_TOOL)])
+        # end if
+    parameters = StdioServerParameters(
+        command=command,
+        args=args,
+        env={
+            **os.environ,
+            'WALK_OPERATIONS': str(OPERATIONS),
+            'WALK_TOOL_KEY_ID': tool_key.key_id,
+            'WALK_TOOL_PRIVATE_KEY': secret,
+            'WALK_START_SIGNER_SEQ': str(start_signer_seq),
+            **case.environment,
+        },
+    )
+    async with stdio_client(parameters) as (read_stream, write_stream):
+        try:
+            if case.audited:
+                async with McpAuditReceiver(read_stream, write_stream, host) as receiver:
+                    await _call(case, receiver.read_stream, receiver.write_stream, host, calls)
+                    # end async with
+            else:
+                await _call(case, read_stream, write_stream, host, calls)
+                # end if
+        except BaseException as error:  # noqa: BLE001 - a dying tool takes the session with it
+            if not (case.expect_tool_death or case.expect_call_error):
+                raise
+                # end if
+            case.death = case.death or repr(error)[:120]
+            # end try
+        # end async with
+    # end def
+
+
+async def _resumed(case: Case, host: AuditHost, store: _Store, tool_key: ToolKey) -> AuditHost:
+    """Rebuild the host from its persisted chain, as a restart does (§7.1)."""
+    registry = KeyRegistry(KeyRole.TOOL)
+    registry.register_tool_key(tool_key)
+    witness_key = generate_tool_key('walk-host-key')
+    return await AuditHost.resume(
+        'tenant-walk',
+        host.capability,
+        repository=store,
+        verifier=KeyRegistryVerifier(registry) if case.host_level == Level.L2 else None,
+        witness_signer=Ed25519WitnessSigner(witness_key.key_id, witness_key.private_key)
+        if case.host_witness == Witness.HOST
+        else None,
+    )
+    # end def
+
+
+async def _call(case: Case, read_stream: object, write_stream: object, host: AuditHost, calls: int) -> None:
     """Initialize, read the tool's declaration, and call it once."""
     async with ClientSession(read_stream, write_stream) as session:  # type: ignore[arg-type]
         result = await session.initialize()
@@ -383,7 +488,7 @@ async def _call(case: Case, read_stream: object, write_stream: object, host: Aud
             # end def
 
         try:
-            for _round in range(case.sequential_calls):
+            for _round in range(calls):
                 async with anyio.create_task_group() as calls:
                     for n in range(case.calls):
                         calls.start_soon(one_call, n)

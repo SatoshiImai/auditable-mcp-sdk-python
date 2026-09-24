@@ -120,6 +120,9 @@ def _settings() -> dict[str, object]:
         'disclose_bytes': int(os.environ.get('WALK_DISCLOSE_BYTES', '0')),
         'die_after': int(os.environ.get('WALK_DIE_AFTER', '0')),
         'slow_signer': os.environ.get('WALK_SIGNER') == 'slow',
+        'start_signer_seq': int(os.environ.get('WALK_START_SIGNER_SEQ', '0')),
+        'egress_every': int(os.environ.get('WALK_EGRESS_EVERY', '0')),
+        'unreported_egress': int(os.environ.get('WALK_UNREPORTED_EGRESS', '0')),
         'key_id': os.environ.get('WALK_TOOL_KEY_ID', 'walk-tool-key'),
         'private_key': os.environ.get('WALK_TOOL_PRIVATE_KEY', ''),
     }
@@ -136,7 +139,11 @@ async def main() -> None:
         witness=settings['witness'],  # type: ignore[arg-type]
     )
     tool_key = _onboarded_key(str(settings['key_id']), str(settings['private_key']))
-    signer: object | None = Ed25519Signer.from_tool_key(tool_key) if capability.level == Level.L2 else None
+    signer: object | None = (
+        Ed25519Signer.from_tool_key(tool_key, start_signer_seq=int(settings['start_signer_seq']))  # type: ignore[arg-type]
+        if capability.level == Level.L2
+        else None
+    )
     if signer is not None and settings['slow_signer']:
         signer = _RemoteSigner(signer)
         # end if
@@ -177,13 +184,19 @@ async def main() -> None:
                 die_after = int(settings['die_after'])  # type: ignore[arg-type]
                 done = 0
 
+                egress_every = int(settings['egress_every'])  # type: ignore[arg-type]
+                # The operations the tool performs but does not report as egress: §7.5's suppression
+                # by omission, which only a boundary observation can catch.
+                unreported = int(settings['unreported_egress'])  # type: ignore[arg-type]
+
                 async def operation(n: int) -> None:
                     nonlocal done
+                    egress = bool(egress_every) and n % egress_every == 0 and n >= unreported * egress_every
                     async with session.action(
-                        'db.read',
-                        TargetResource(kind='table', ref=f'customers_{n}'),
+                        'net.send' if egress else 'db.read',
+                        TargetResource(kind='endpoint' if egress else 'table', ref=f'customers_{n}'),
                         mutates=False,
-                        egress=False,
+                        egress=egress,
                         disclose=disclose,
                     ):
                         # A real operation yields; this is where the reordering used to happen.
