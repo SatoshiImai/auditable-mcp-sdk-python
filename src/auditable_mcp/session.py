@@ -291,7 +291,12 @@ class AuditedAction:
         # end def
 
     async def _emit_aborted_best_effort(self, reason: AbortReason) -> None:
-        """Emit the aborted outcome without letting a broken transport mask the abort itself (§7.2)."""
+        """Emit the aborted outcome without letting a failure to emit it mask the abort itself (§7.2).
+
+        Every abort path goes through here. Building the outcome signs it under Level 2, so a dead
+        signer or a dead transport can fail the emission - and the abort is what the caller must act
+        on, not the second failure that happened while recording it.
+        """
         try:
             await self._emit_aborted(reason)
         except Exception:
@@ -302,39 +307,45 @@ class AuditedAction:
 
     async def __aenter__(self) -> AuditedAction:
         """Emit the attempt, await accept, run Polluted Stop; abort (and raise) unless cleared."""
-        try:
-            # §7.4: the numbering and the emission are one section, so two concurrent actions under
-            # one key cannot leave in the order their signing happened to finish in. The section
-            # spans the host's answer, not just the send: on a transport that carries each call on
-            # its own stream (Streamable HTTP, §6), two frames sent in order have no mutual arrival
-            # order, so the previous attempt has to be acknowledged before the next one is emitted.
-            # It costs the overlap of the wire latency under Level 2, and it is what makes the
-            # ordering hold on a transport that does not carry one.
-            async with self._session._numbering:
-                attempt = await self._build(Outcome.ATTEMPTED)
+        fault: Exception | None = None
+        # §7.4: the numbering and the emission are one section, so two concurrent actions under one
+        # key cannot leave in the order their signing happened to finish in. The section spans the
+        # host's answer, not just the send: on a transport that carries each call on its own stream
+        # (Streamable HTTP, §6), two frames sent in order have no mutual arrival order, so the
+        # previous attempt has to be acknowledged before the next one is emitted. It costs the
+        # overlap of the wire latency under Level 2, and it is what makes the ordering hold on a
+        # transport that does not carry one.
+        async with self._session._numbering:
+            # Building signs the event under Level 2, and a signer that fails is the tool's own
+            # failure, not the host's. It stays outside the conversion below so it reaches the caller
+            # as itself rather than as `host-unavailable`, which would send an operator to the host.
+            attempt = await self._build(Outcome.ATTEMPTED)
+            try:
                 response = await self._session._transport.send_attempt(attempt)
-                # end async with
-        except AmcpUsageError:
-            # Not a failure to record: the SDK was used against its own contract, and no audit
-            # outcome describes that. Filing `host-unavailable` for it would blame the host for the
-            # integrator's error and bury the one thing they need to see (§6.2).
-            raise
-        except Exception as error:
-            # §6/§11.3: a transport fault (as against an `unavailable` result) is a failure to record
-            # and is handled exactly as `unavailable` - fail closed. The catch is broad on purpose:
-            # the transport is injected and its error types are not this SDK's to know, and letting
-            # one escape would leave the caller with an exception that is not an audit outcome and no
-            # `aborted` record of the action that did not happen.
+            except AmcpUsageError:
+                # Not a failure to record: the SDK was used against its own contract, and no audit
+                # outcome describes that. Filing `host-unavailable` for it would blame the host for
+                # the integrator's error and bury the one thing they need to see (§6.2).
+                raise
+            except Exception as error:
+                # §6/§11.3: a transport fault (as against an `unavailable` result) is a failure to
+                # record and is handled exactly as `unavailable` - fail closed. The catch is broad on
+                # purpose: the transport is injected and its error types are not this SDK's to know.
+                # The abort is emitted outside this section, which the emission needs for itself.
+                fault = error
+                # end try
+            # end async with
+        if fault is not None:
             await self._emit_aborted_best_effort(reasons.HOST_UNAVAILABLE)
-            raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_UNAVAILABLE) from error
-            # end try
+            raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_UNAVAILABLE) from fault
+            # end if
 
         if not isinstance(response, AcceptResponse):
             # reject (invalid) or unavailable (not persisted): do not act; signal aborted (§11.3).
             reason: AbortReason = (
                 reasons.HOST_REJECTED if isinstance(response, RejectResponse) else reasons.HOST_UNAVAILABLE
             )
-            await self._emit_aborted(reason)
+            await self._emit_aborted_best_effort(reason)
             raise AmcpAbortedError(self._action_type, self._target.ref, reason)
             # end if
 
@@ -342,7 +353,7 @@ class AuditedAction:
         # that authenticates the host-assigned fields, then the hash computed over them. The reason is
         # sealed into the ledger and compared across implementations, so the order is not incidental.
         if self._session._require_witness and response.host_signature is None:
-            await self._emit_aborted(reasons.HOST_UNWITNESSED)
+            await self._emit_aborted_best_effort(reasons.HOST_UNWITNESSED)
             raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_UNWITNESSED)
             # end if
         if response.host_signature is not None and self._session._witness_verifier is not None:
@@ -352,7 +363,7 @@ class AuditedAction:
                 response.host_key_id, response.host_signature, payload
             )
             if not verified:
-                await self._emit_aborted(reasons.HOST_SIGNATURE_INVALID)
+                await self._emit_aborted_best_effort(reasons.HOST_SIGNATURE_INVALID)
                 raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_SIGNATURE_INVALID)
                 # end if
             # end if
@@ -362,7 +373,7 @@ class AuditedAction:
         if self._session._polluted_stop:
             expected = compute_record_hash(attempt, response.seq, response.host_ts, response.previous_hash)
             if expected != response.record_hash:
-                await self._emit_aborted(reasons.HASH_MISMATCH)
+                await self._emit_aborted_best_effort(reasons.HASH_MISMATCH)
                 raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HASH_MISMATCH)
                 # end if
             # end if

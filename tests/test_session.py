@@ -3,6 +3,7 @@
 import pytest
 
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
+from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger
 from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Level, TargetResource, Witness
@@ -403,6 +404,79 @@ class TestMisuseIsNotATransportFault:
                 # end async with
             # end with
         assert not transport.outcomes, 'an aborted record was filed for a wiring error'
+        # end def
+
+    # end class
+
+
+class _DeadSigner:
+    """The tool's own signer is down. The host is fine."""
+
+    async def sign(self, event: dict[str, object]) -> dict[str, object]:
+        """Fail the way a KMS client does when it cannot reach the service."""
+        raise ConnectionError('KMS unreachable')
+        # end def
+
+    # end class
+
+
+class _RefusingHost:
+    """A host that rejects every attempt, so the abort path runs."""
+
+    def __init__(self) -> None:
+        """Declare an ordinary L1 capability."""
+        self.capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE
+        )
+        self.outcomes = 0
+        # end def
+
+    async def handle_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Refuse."""
+        return reject('schema-invalid')
+        # end def
+
+    async def handle_outcome(self, event: dict[str, object]) -> None:
+        """Fail while recording the abort, which must not replace the abort."""
+        self.outcomes += 1
+        raise ConnectionError('the wire went away mid-abort')
+        # end def
+
+    # end class
+
+
+class TestAToolSideFailureIsNotTheHostSFailure:
+    """§7.2, §7.6: the Tier-1 abort reasons name the host, and a dead signer is not one of them."""
+
+    @pytest.mark.asyncio
+    async def test_a_dead_signer_reaches_the_caller_as_itself(self) -> None:
+        """`host-unavailable` would send an operator to a host that is answering perfectly well."""
+        host = AuditHost('tenant-a')
+        session = AmcpSession(InProcessTransport(host), 'call-1', signer=_DeadSigner(), deps=_FixedDeps())
+        with pytest.raises(ConnectionError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pytest.fail('the action ran although nothing recorded it')
+                # end async with
+            # end with
+        assert not host.records(), 'nothing may be sealed when the event could not be built'
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_failure_to_record_the_abort_does_not_replace_the_abort(self) -> None:
+        """Every abort path, not only the transport-fault one: the caller must see why it stopped."""
+        endpoint = _RefusingHost()
+        session = AmcpSession(InProcessTransport(endpoint), 'call-1', deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError) as aborted:
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pass
+                # end async with
+            # end with
+        assert aborted.value.reason == 'host-rejected'
+        assert endpoint.outcomes == 1, 'the abort was never even attempted'
         # end def
 
     # end class
