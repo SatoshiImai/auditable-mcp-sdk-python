@@ -182,8 +182,8 @@ class _FrameSeam:
                     await self._to_session.send(message)
                     continue
                     # end if
-                self._track(message.message.root)
                 if not await self._intercept(message.message.root):
+                    self._track(message.message.root)
                     await self._to_session.send(message)
                     # end if
                 # end for
@@ -223,7 +223,11 @@ class _FrameSeam:
         # end def
 
     def _track(self, frame: Frame) -> None:
-        """Remember an inbound request while it is in flight."""
+        """Remember an inbound request while it is in flight.
+
+        Only what reaches the session: a frame this seam answered itself is not a call anything
+        still owes an answer to, and keeping it would grow this map for the life of the connection.
+        """
         if isinstance(frame, JSONRPCRequest):
             self._live[str(frame.id)] = frame.id
             # end if

@@ -315,6 +315,24 @@ reproduce every vector byte-for-byte.
 ```bash
 make spec/check    # fail if the vendored spec drifted from source
 make test          # includes the cross-language conformance vectors
+make walk          # drive the SDK over a real stdio pipe (see below)
+```
+
+### The walk
+
+`walk/` runs the SDK the way a deployment does: the tool is a **separate process**, the wire is a
+real pipe, and the host is the official MCP client with an `McpAuditReceiver` in front of it. The
+suite cannot see what only exists across that boundary — framing, back-pressure, process lifetime,
+and operations that really are concurrent — so the walk covers it, and each case states what it
+expects of the ledger rather than of the SDK's internals.
+
+It also drives the **TypeScript** tool from this Python host over the same pipe, which is what makes
+the interoperability claim something other than an assertion. Those cases are skipped if the other
+port is not checked out beside this one.
+
+```bash
+make walk                 # every case
+make walk CASE=crosslang  # the cross-language cases
 ```
 
 ## Layout

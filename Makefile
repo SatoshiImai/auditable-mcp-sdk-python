@@ -106,3 +106,6 @@ clean:
 
 __require_target__:
 	@[ -n "$(TARGET)" ] || (echo "[ERROR] Parameter [TARGET] is required" 1>&2 && echo "(e.g) make test/target TARGET=tests/test_models.py" 1>&2 && exit 1)
+
+walk: ## drive the SDK over a real stdio pipe, including the TypeScript tool
+	python walk/run.py $(CASE)

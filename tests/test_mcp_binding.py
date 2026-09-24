@@ -643,14 +643,14 @@ class TestClosing:
 @asynccontextmanager
 async def _host_on_a_bare_wire(
     endpoint: object,
-) -> AsyncIterator[tuple[MemoryObjectReceiveStream, MemoryObjectSendStream, _Drain]]:
+) -> AsyncIterator[tuple[MemoryObjectReceiveStream, MemoryObjectSendStream, _Drain, McpAuditReceiver]]:
     """A host seam whose peer is this test, so malformed audit traffic can be put on the wire."""
     async with create_client_server_memory_streams() as (client_streams, server_streams):
         async with McpAuditReceiver(client_streams[0], client_streams[1], endpoint) as receiver:  # type: ignore[arg-type]
             drain = _Drain()
             async with anyio.create_task_group() as tasks:
                 tasks.start_soon(drain.run, receiver.read_stream)
-                yield server_streams[0], server_streams[1], drain
+                yield server_streams[0], server_streams[1], drain, receiver
                 tasks.cancel_scope.cancel()
                 # end async with
             # end async with
@@ -664,7 +664,7 @@ class TestMalformedAuditTraffic:
     async def test_an_outcome_sent_as_a_request_is_refused_and_not_sealed(self) -> None:
         """The outcome channel is a notification; a request is a malformed envelope, which is an error."""
         host = _host()
-        async with _host_on_a_bare_wire(host) as (peer_read, peer_write, session_saw):
+        async with _host_on_a_bare_wire(host) as (peer_read, peer_write, session_saw, _receiver):
             request = JSONRPCRequest(jsonrpc='2.0', id=7, method=OUTCOME_METHOD, params={'event_id': 'e1'})
             await peer_write.send(SessionMessage(message=JSONRPCMessage(request)))
             with anyio.fail_after(1.0):
@@ -680,7 +680,7 @@ class TestMalformedAuditTraffic:
     async def test_an_attempt_sent_as_a_notification_is_dropped(self) -> None:
         """It has no response channel, so sealing it would record an operation never cleared (§6)."""
         host = _host()
-        async with _host_on_a_bare_wire(host) as (peer_read, peer_write, session_saw):
+        async with _host_on_a_bare_wire(host) as (peer_read, peer_write, session_saw, _receiver):
             notification = JSONRPCNotification(jsonrpc='2.0', method=ATTEMPT_METHOD, params={'event_id': 'e1'})
             await peer_write.send(SessionMessage(message=JSONRPCMessage(notification)))
             # A well-formed attempt behind it: the first frame back proves what the notification produced.
@@ -781,6 +781,16 @@ class TestOverALiveMcpSession:
     # end class
 
 
+def _live_of(seam: object) -> dict[str, str | int]:
+    """The seam's map of calls the session still owes an answer to.
+
+    Reached directly because the map has no behaviour of its own to observe: what it must not do is
+    grow. The TypeScript port keeps the same rule by construction; its field is unreachable.
+    """
+    return dict(seam._live)  # type: ignore[attr-defined]
+    # end def
+
+
 def _tools_call(request_id: str | int) -> SessionMessage:
     """A `tools/call` request, the parent §4's `call_id` names."""
     return SessionMessage(
@@ -837,6 +847,44 @@ class TestAuditFramesRideTheCall:
                 # end with
             # end async with
         assert message.metadata is None
+        # end def
+
+    # end class
+
+
+class TestTheLiveCallMapDoesNotGrow:
+    """A connection outlives its calls, so anything kept per call is kept for the connection."""
+
+    async def test_an_answered_attempt_is_not_a_live_call(self) -> None:
+        """The host seam answers `audit/attempt` itself, so nothing still owes an answer for it."""
+        host = _host()
+        async with _host_on_a_bare_wire(host) as (peer_read, peer_write, _seen, receiver):
+            for n in range(1, 6):
+                request = JSONRPCRequest(jsonrpc='2.0', id=f'amcp-{n}', method=ATTEMPT_METHOD, params={'event_id': 'e'})
+                await peer_write.send(SessionMessage(message=JSONRPCMessage(request)))
+                with anyio.fail_after(1.0):
+                    await peer_read.receive()
+                    # end with
+                # end for
+            live = _live_of(receiver)
+            # end async with
+        assert live == {}, f'the seam is holding {len(live)} answered attempts for the connection'
+        # end def
+
+    async def test_a_call_the_session_owes_is_tracked_until_it_answers(self) -> None:
+        """The map exists for the calls this SDK must correlate its frames to (§4)."""
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
+            await peer_write.send(_tools_call(7))
+            await _settle(lambda: 'tools/call' in session_saw.methods())
+            # `initialize` is live too: the session owes that one an answer as well.
+            assert _live_of(transport)['7'] == 7
+            answer = JSONRPCResponse(jsonrpc='2.0', id=7, result={'content': []})
+            await transport.write_stream.send(SessionMessage(message=JSONRPCMessage(answer)))
+            with anyio.fail_after(1.0):
+                await peer_read.receive()
+                # end with
+            assert '7' not in _live_of(transport)
+            # end async with
         # end def
 
     # end class
