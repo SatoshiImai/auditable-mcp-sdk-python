@@ -15,12 +15,13 @@ and anomaly flagging are host logic. A persistence failure fails closed with a r
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final, Protocol
 
 from auditable_mcp import fields, reasons
 from auditable_mcp.canonical import has_unsafe_number
 from auditable_mcp.clock import Clock, SystemClock
+from auditable_mcp.hashing import witness_payload
 from auditable_mcp.ledger import Ledger, SealedRecord
 from auditable_mcp.models import (
     SPEC_VERSION,
@@ -76,6 +77,26 @@ _HOST_CAPABILITY_DEFAULTS: Final[dict[str, object]] = {
 }
 
 
+class WitnessSigner(Protocol):
+    """Signs the host-assigned fields of a record this host sealed (§5.2, §7.1).
+
+    `sign` is async for the same reason `EventSigner.sign` is: a production host signs through a
+    network HSM or KMS. The payload is already canonical (`witness_payload`), so a signer does
+    cryptography only - the preimage is built in one place, by the host.
+    """
+
+    @property
+    def key_id(self) -> str:
+        """The `host_key_id` a verifier's registry binds to this host."""
+        ...
+
+    async def sign(self, payload: bytes) -> str:
+        """Return the standard-base64 detached signature over `payload`."""
+        ...
+
+    # end class
+
+
 def _resolve_capability(capability: AuditCapability | AuditCapabilityInput | None) -> AuditCapability:
     """Build the host's own required capability, filling unset fields from the SDK's defaults (§6.1)."""
     if isinstance(capability, AuditCapability):
@@ -95,6 +116,7 @@ class AuditHost:
         capability: AuditCapability | AuditCapabilityInput | None = None,
         *,
         verifier: SignatureVerifier | None = None,
+        witness_signer: WitnessSigner | None = None,
         repository: LedgerRepository | None = None,
         clock: Clock | None = None,
     ) -> None:
@@ -105,15 +127,22 @@ class AuditHost:
         host from a persisted chain.
 
         Raises:
-            ValueError: If the required level is Level 2 but no `verifier` was provided.
+            ValueError: If the required level is Level 2 but no `verifier` was provided, or the host
+                declares `witness: "host"` but no `witness_signer` was provided.
         """
         self._capability = _resolve_capability(capability)
         if self._capability.level == Level.L2 and verifier is None:
             raise ValueError('an L2 host requires a SignatureVerifier')
             # end if
+        # A host that declares it signs and then does not would leave every record unwitnessed while
+        # its peers expect otherwise; the declaration is refused at construction instead (§11.2).
+        if self._capability.witness == Witness.HOST and witness_signer is None:
+            raise ValueError('a host declaring witness "host" requires a WitnessSigner')
+            # end if
         self._partition = partition
         self._ledger = Ledger(partition)
         self._verifier = verifier
+        self._witness_signer = witness_signer
         self._repository = repository
         self._clock = clock if clock is not None else SystemClock()
         # Set False by the integrator when persistence is known to be down; also fail closed.
@@ -132,6 +161,7 @@ class AuditHost:
         *,
         repository: LedgerRepository,
         verifier: SignatureVerifier | None = None,
+        witness_signer: WitnessSigner | None = None,
         clock: Clock | None = None,
     ) -> AuditHost:
         """Build a host that continues `partition`'s persisted chain.
@@ -141,7 +171,14 @@ class AuditHost:
         Reject memory is not persisted, so an outcome for a pre-restart rejected id is still flagged
         `orphaned-outcome`, as a never-accepted one.
         """
-        host = cls(partition, capability, verifier=verifier, repository=repository, clock=clock)
+        host = cls(
+            partition,
+            capability,
+            verifier=verifier,
+            witness_signer=witness_signer,
+            repository=repository,
+            clock=clock,
+        )
         records = await repository.read_all(partition)
         host._ledger.resume_from(records[-1] if records else None)
         for record in records:
@@ -156,6 +193,14 @@ class AuditHost:
     async def _seal(self, event: dict[str, object], host_ts: str) -> SealedRecord | None:
         """Seal `event`, persist it if a repository is configured, then commit; None on persistence failure."""
         sealed = self._ledger.seal(event, host_ts)
+        if self._witness_signer is not None:
+            payload = witness_payload(sealed.seq, sealed.host_ts, sealed.previous_hash, sealed.record_hash)
+            sealed = replace(
+                sealed,
+                host_signature=await self._witness_signer.sign(payload),
+                host_key_id=self._witness_signer.key_id,
+            )
+            # end if
         if self._repository is not None:
             try:
                 await self._repository.append(self._partition, sealed)
@@ -287,7 +332,14 @@ class AuditHost:
         self._accepted_attempts.add(event_id)
         self._advance_seq(event)
         # Verifiable Accept (§7.1): return the host-assigned fields the tool needs for Polluted Stop.
-        return accept(sealed.seq, sealed.record_hash, sealed.host_ts, sealed.previous_hash)
+        return accept(
+            sealed.seq,
+            sealed.record_hash,
+            sealed.host_ts,
+            sealed.previous_hash,
+            host_signature=sealed.host_signature,
+            host_key_id=sealed.host_key_id,
+        )
         # end def
 
     async def handle_outcome(self, event: dict[str, object]) -> None:

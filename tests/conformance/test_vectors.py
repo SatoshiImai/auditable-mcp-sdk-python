@@ -11,7 +11,7 @@ from auditable_mcp import (
     compute_record_hash,
     sha256_hex,
 )
-from auditable_mcp.hashing import GENESIS_HASH
+from auditable_mcp.hashing import GENESIS_HASH, witness_payload
 
 
 def test_canonicalization_vectors_reproduce_exact_bytes_and_hash(
@@ -83,4 +83,29 @@ def test_chain_vector_record_hashes_and_links_reproduce(chain_vector: dict[str, 
 def test_signed_chain_vector_reproduces_with_signature_in_the_preimage(chain_signed_vector: dict[str, Any]) -> None:
     """The Level-2 signed chain reproduces: the record_hash preimage includes the signature (§8.2)."""
     _reproduce_chain(chain_signed_vector)
+    # end def
+
+
+def test_witness_preimage_reproduces_the_golden_bytes(chain_witnessed_vector: dict[str, Any]) -> None:
+    """The bytes a witness signature covers must match the vector exactly (§7.1, §8.4)."""
+    for record in chain_witnessed_vector['records']:
+        payload = witness_payload(record['seq'], record['host_ts'], record['previous_hash'], record['record_hash'])
+        assert payload.decode('utf-8') == record['witness_preimage']['canonical'], record['seq']
+        assert sha256_hex(payload.decode('utf-8')) == record['witness_preimage']['sha256'], record['seq']
+        # end for
+    # end def
+
+
+def test_the_witnessed_chain_hashes_identically_to_the_unwitnessed_one(
+    chain_vector: dict[str, Any], chain_witnessed_vector: dict[str, Any]
+) -> None:
+    """The signature sits outside the §8.2 preimage, so both chains seal to the same bytes (§5.2)."""
+    assert chain_witnessed_vector['digest'] == chain_vector['digest']
+    previous = GENESIS_HASH
+    for witnessed, plain in zip(chain_witnessed_vector['records'], chain_vector['records'], strict=True):
+        computed = compute_record_hash(witnessed['event'], witnessed['seq'], witnessed['host_ts'], previous)
+        assert computed == witnessed['record_hash'] == plain['record_hash'], witnessed['seq']
+        assert witnessed['host_signature'], 'the witnessed vector must carry a signature'
+        previous = computed
+        # end for
     # end def

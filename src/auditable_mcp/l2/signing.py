@@ -1,9 +1,14 @@
-"""Level-2 signing (tool side).
+"""Signing: Level-2 events (tool side) and witness signatures (host side).
 
 The detached signature is computed over the RFC 8785 canonical form of the event with the
 `signature` field removed (§8.2), so `key_id` and `sequence` are part of the signed payload and
 tampering with any field invalidates the signature. `Ed25519Signer` implements the session's
 `EventSigner` protocol and owns the per-key monotonic sequence counter.
+
+`Ed25519WitnessSigner` is the host-side counterpart (§5.2, §7.1). It signs an already-canonical
+payload built by the host (`hashing.witness_payload`), carries no sequence of its own, and is bound
+to a `host_key_id` a verifier's registry resolves separately from any tool key: the two registries
+have the same shape and the same algorithm identifiers, and never share an entry.
 """
 
 import base64
@@ -53,6 +58,29 @@ class Ed25519Signer:
         signer_seq = self._next_signer_seq
         self._next_signer_seq += 1
         return sign_event(event, self._key_id, signer_seq, self._private_key)
+        # end def
+
+    # end class
+
+
+class Ed25519WitnessSigner:
+    """A `WitnessSigner` that signs the host-assigned fields of a record this host sealed (§7.1)."""
+
+    def __init__(self, key_id: str, private_key: Ed25519PrivateKey) -> None:
+        """Bind the signer to the `host_key_id` a verifier's registry resolves to this key."""
+        self._key_id = key_id
+        self._private_key = private_key
+        # end def
+
+    @property
+    def key_id(self) -> str:
+        """The `host_key_id` returned alongside every signature this host produces."""
+        return self._key_id
+        # end def
+
+    async def sign(self, payload: bytes) -> str:
+        """Return the standard-base64 detached signature over the canonical payload (local, no I/O)."""
+        return base64.b64encode(self._private_key.sign(payload)).decode('ascii')
         # end def
 
     # end class

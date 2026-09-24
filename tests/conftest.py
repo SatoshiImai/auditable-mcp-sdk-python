@@ -48,6 +48,13 @@ def chain_signed_vector() -> dict[str, Any]:
 
 
 @pytest.fixture
+def chain_witnessed_vector() -> dict[str, Any]:
+    """The golden witnessed chain: the same records as chain.json plus the witness signature (§8.4)."""
+    return _load(_VECTORS_DIR / 'chain-witnessed.json')
+    # end def
+
+
+@pytest.fixture
 def error_cases() -> list[dict[str, Any]]:
     """Golden events a host MUST reject (attempt) or drop and flag (outcome), with the Tier-1 code."""
     return _load(_VECTORS_DIR / 'error-cases.json')

@@ -29,9 +29,24 @@ from auditable_mcp.models import (
 )
 
 
-def accept(seq: int, record_hash: str, host_ts: str, previous_hash: str) -> AcceptResponse:
-    """Build a Verifiable Accept carrying the fields the tool needs for Polluted Stop (§7.1)."""
-    return AcceptResponse(seq=seq, record_hash=record_hash, host_ts=host_ts, previous_hash=previous_hash)
+def accept(
+    seq: int,
+    record_hash: str,
+    host_ts: str,
+    previous_hash: str,
+    *,
+    host_signature: str | None = None,
+    host_key_id: str | None = None,
+) -> AcceptResponse:
+    """Build a Verifiable Accept, with the witness signature when the host signs (§7.1, §5.2)."""
+    return AcceptResponse(
+        seq=seq,
+        record_hash=record_hash,
+        host_ts=host_ts,
+        previous_hash=previous_hash,
+        host_signature=host_signature,
+        host_key_id=host_key_id,
+    )
     # end def
 
 

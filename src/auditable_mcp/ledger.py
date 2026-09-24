@@ -25,16 +25,25 @@ class SealedRecord:
     host_ts: str
     previous_hash: str
     record_hash: str
+    # The witness (§5.2): written by a host that declares `witness: "host"`, absent otherwise. Omitted
+    # from `to_dict` when absent, so an unwitnessed record persists byte-identically to before v0.3.
+    host_signature: str | None = None
+    host_key_id: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible dict for persistence (adapters store this)."""
-        return {
+        record: dict[str, object] = {
             'event': self.event,
             'seq': self.seq,
             'host_ts': self.host_ts,
             'previous_hash': self.previous_hash,
             'record_hash': self.record_hash,
         }
+        if self.host_signature is not None:
+            record['host_signature'] = self.host_signature
+            record['host_key_id'] = self.host_key_id
+            # end if
+        return record
         # end def
 
     @classmethod
@@ -53,6 +62,8 @@ class SealedRecord:
             host_ts=data['host_ts'],  # type: ignore[arg-type]
             previous_hash=data['previous_hash'],  # type: ignore[arg-type]
             record_hash=data['record_hash'],  # type: ignore[arg-type]
+            host_signature=data.get('host_signature'),  # type: ignore[arg-type]
+            host_key_id=data.get('host_key_id'),  # type: ignore[arg-type]
         )
         # end def
 

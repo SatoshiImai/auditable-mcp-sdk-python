@@ -6,7 +6,7 @@ signature verifier (host side), which the `AmcpSession` and `AuditHost` already 
 
 from auditable_mcp.l2.keys import KeyRegistry, RegisteredKey, SignatureAlgorithm, ToolKey, generate_tool_key
 from auditable_mcp.l2.reconcile import BoundaryObserver, EgressObservation, ReconcileAnomaly, reconcile
-from auditable_mcp.l2.signing import Ed25519Signer, sign_event, signature_payload
+from auditable_mcp.l2.signing import Ed25519Signer, Ed25519WitnessSigner, sign_event, signature_payload
 from auditable_mcp.l2.verification import (
     KeyRegistryVerifier,
     verify_ecdsa_signature,
@@ -16,6 +16,7 @@ from auditable_mcp.l2.verification import (
 __all__ = [
     'BoundaryObserver',
     'Ed25519Signer',
+    'Ed25519WitnessSigner',
     'EgressObservation',
     'KeyRegistry',
     'KeyRegistryVerifier',

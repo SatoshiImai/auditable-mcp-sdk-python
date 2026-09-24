@@ -35,7 +35,10 @@ RECORD_HASH = 'record_hash'
 HOST_TS = 'host_ts'
 PREVIOUS_HASH = 'previous_hash'
 RETRYABLE = 'retryable'
+HOST_SIGNATURE = 'host_signature'
+HOST_KEY_ID = 'host_key_id'
 
 # Audit capability (§6.1).
 LEVEL = 'level'
 ATTEMPT = 'attempt'
+WITNESS = 'witness'
