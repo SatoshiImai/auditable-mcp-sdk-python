@@ -16,9 +16,13 @@ Level 1 and Level 2 emission are identical; Level 2 only adds the signer.
 from __future__ import annotations
 
 import logging
+import weakref
+from contextlib import AbstractAsyncContextManager, nullcontext
 from types import TracebackType
 from typing import Protocol
 from uuid import uuid4
+
+import anyio
 
 from auditable_mcp import reasons
 from auditable_mcp.canonical import hash_canonical
@@ -93,6 +97,35 @@ class SystemDeps:
 
 _logger = logging.getLogger(__name__)
 
+# §7.4 requires a tool to assign `signer_seq` and emit the event atomically with respect to every
+# other event under the same `key_id`. The counter lives in the signer and the send lives here, so
+# neither alone can hold the invariant; the lock is keyed on the signer because `signer_seq` is per
+# key, and sessions serving different `tools/call`s share one signer for one key. Weak keys so a
+# signer that goes out of scope takes its lock with it.
+_NUMBERING: weakref.WeakKeyDictionary[EventSigner, anyio.Lock] = weakref.WeakKeyDictionary()
+
+
+def _numbering_lock(signer: EventSigner | None) -> AbstractAsyncContextManager[object]:
+    """Return the lock that keeps one key's numbering and emission in the same order (§7.4).
+
+    Level 1 numbers nothing, so it takes no lock: serializing it would cost concurrency the
+    specification does not ask for.
+
+    Raises:
+        TypeError: The signer is unhashable, so it cannot key its own lock. Give it the default
+            identity hash rather than value equality; two signers holding one key are one sequencer.
+    """
+    if signer is None:
+        return nullcontext()
+        # end if
+    lock = _NUMBERING.get(signer)
+    if lock is None:
+        lock = anyio.Lock()
+        _NUMBERING[signer] = lock
+        # end if
+    return lock
+    # end def
+
 
 class AmcpAbortedError(Exception):
     """The tool's own fail-closed halt: the domain action was not performed (outcome=aborted).
@@ -152,6 +185,7 @@ class AmcpSession:
         self._transport = transport
         self._call_id = call_id
         self._signer = signer
+        self._numbering = _numbering_lock(signer)
         self._deps = deps if deps is not None else SystemDeps()
         self._polluted_stop = signer is not None if polluted_stop is None else polluted_stop
         self._witness_verifier = witness_verifier
@@ -251,7 +285,9 @@ class AuditedAction:
 
     async def _emit_aborted(self, reason: AbortReason) -> None:
         """Emit an aborted outcome recording why the domain action was not performed (§7.2)."""
-        await self._session._transport.send_outcome(await self._build(Outcome.ABORTED, reason))
+        async with self._session._numbering:
+            await self._session._transport.send_outcome(await self._build(Outcome.ABORTED, reason))
+            # end async with
         # end def
 
     async def _emit_aborted_best_effort(self, reason: AbortReason) -> None:
@@ -266,9 +302,13 @@ class AuditedAction:
 
     async def __aenter__(self) -> AuditedAction:
         """Emit the attempt, await accept, run Polluted Stop; abort (and raise) unless cleared."""
-        attempt = await self._build(Outcome.ATTEMPTED)
         try:
-            response = await self._session._transport.send_attempt(attempt)
+            # §7.4: the numbering and the emission are one section, so two concurrent actions under
+            # one key cannot leave in the order their signing happened to finish in.
+            async with self._session._numbering:
+                attempt = await self._build(Outcome.ATTEMPTED)
+                response = await self._session._transport.send_attempt(attempt)
+                # end async with
         except Exception as error:
             # §6/§11.3: a transport fault (as against an `unavailable` result) is a failure to record
             # and is handled exactly as `unavailable` - fail closed. The catch is broad on purpose:
@@ -329,7 +369,9 @@ class AuditedAction:
     ) -> bool:
         """Emit success (body completed) or failed (body raised); never suppress the exception."""
         outcome = Outcome.FAILED if exc_type is not None else Outcome.SUCCESS
-        await self._session._transport.send_outcome(await self._build(outcome))
+        async with self._session._numbering:
+            await self._session._transport.send_outcome(await self._build(outcome))
+            # end async with
         return False
         # end def
 

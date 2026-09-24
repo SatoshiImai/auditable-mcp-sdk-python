@@ -26,6 +26,8 @@ What this SDK does:
   resume-after-restart — over a `LedgerRepository` interface you implement.
 - Atomic sealing (§7.1): one lock per partition, so concurrent attempts take distinct positions in
   the chain rather than the same one.
+- Atomic numbering (§7.4): one section per signer, so concurrent Level-2 actions reach the host in
+  the order they were numbered rather than the order their signing finished in.
 
 What it does not do (your concern, via adapters):
 
