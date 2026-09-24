@@ -1,7 +1,37 @@
 # Changelog
 
 Changes to the Auditable MCP Python SDK. The SDK package version is independent of the
-`spec_version` it implements (currently `auditable-mcp/0.2`); this file tracks the package.
+`spec_version` it implements (currently `auditable-mcp/0.3`); this file tracks the package.
+
+## 0.3.0
+
+Breaking, tracking spec `auditable-mcp/0.3`.
+
+### Breaking changes
+
+- **Emission moves to `auditable-mcp/0.3`**, so every golden digest changes; the verifier stays
+  read-lenient and still accepts records sealed under any published version.
+- **`AuditCapability` gains a REQUIRED `witness`** of `none` or `host` (§5.2, §6.1). A capability
+  built without it no longer validates.
+- **`negotiate(host, tool)` replaces the single-axis fit.** `capability_satisfies` splits into
+  `level_satisfies` and `witness_satisfies`, because the axes run in opposite directions, and the
+  result carries a `NegotiationOutcome` rather than a boolean `satisfied`: a host that declared
+  nothing is an absent negotiation, not a failed one, and §6.2 governs it differently.
+
+### Added
+
+- **The witness axis.** `AuditHost` takes a `WitnessSigner` (`Ed25519WitnessSigner` locally) and
+  signs the host-assigned fields of every record it seals, attempts and outcomes alike; an outcome's
+  signature is written into the ledger, since `audit/outcome` has no response channel. `AmcpSession`
+  takes a `WitnessVerifier` (`WitnessRegistryVerifier`) and enforces §7.2's precedence — status, then
+  the witness, then the hash. `SealedRecord` carries `host_signature` / `host_key_id` and omits them
+  when absent, so an unwitnessed record persists byte-identically to before.
+- **`degradation.transport_for`** picks what §6.2 permits for a session that was not negotiated, and
+  refuses to return a transport for the third, non-conformant posture.
+- **`VerifyReport.unchecked` and `.complete`** (§11.4). A verifier without the out-of-band registry
+  performs no witness determination, and saying so is not optional even though the check is.
+- `reasons.HOST_UNWITNESSED` / `HOST_SIGNATURE_INVALID`; `hashing.witness_payload`;
+  `verification.verify_detached_signature`.
 
 ## 0.2.1
 

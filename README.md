@@ -1,7 +1,7 @@
 # Auditable MCP SDK (Python)
 
 A protocol machine for [Auditable MCP](https://github.com/SatoshiImai/mcp-audit-extension)
-(`auditable-mcp/0.2`). It lets an MCP tool self-attest its internal domain operations (SQL queries,
+(`auditable-mcp/0.3`). It lets an MCP tool self-attest its internal domain operations (SQL queries,
 downstream API calls) and lets a host seal those attestations into a tamper-evident, hash-chained
 ledger.
 
@@ -16,6 +16,9 @@ What this SDK does:
 - RFC 8785 (JCS) canonicalization with the strict numeric domain of the spec.
 - The record-hash preimage and the per-partition hash chain.
 - The audit-before-act tool lifecycle and the host audit subsystem (Level 1 and Level 2).
+- Capability negotiation on both axes, and the §6.2 postures for a session that was not negotiated.
+- The witness: a host that declares it signs, signing what it sealed, and the tool and verifier
+  checking it.
 - Ed25519 signing/verification, plus an AWS KMS adapter, behind an injection seam.
 - The durable-ledger lifecycle — seal-before-accept, fail-closed on a persistence error, and
   resume-after-restart — over a `LedgerRepository` interface you implement.
@@ -31,7 +34,7 @@ What it does not do (your concern, via adapters):
 
 ## Status
 
-Alpha, tracking `auditable-mcp/0.2`. The public API is unstable while the spec is a pre-1.0 draft.
+Alpha, tracking `auditable-mcp/0.3`. The public API is unstable while the spec is a pre-1.0 draft.
 
 ## Install
 
@@ -64,6 +67,14 @@ make lint          # ruff + mypy --strict
 - Levels: Level 1 is self-reporting; Level 2 adds a detached signature and a monotonic sequence.
   The only difference on the tool side is an injected signer, and on the host side an injected
   verifier.
+- Witness: an independent axis (§5.2). The level says how strongly a tool's attestation resists
+  forgery; the witness says who sealed it. A host that declares `witness: "host"` signs the
+  host-assigned fields of every record it seals, so a verifier can tell a chain a distinct host
+  confirmed from one a tool recorded for itself. Absence of a signature is a state, not an anomaly.
+- Degradation: a tool that speaks this extension stays usable by hosts that do not. Where the
+  extension was not negotiated, `transport_for` gives back either an audit host the tool provides
+  for itself (degraded) or refuses to serve (mandatory) — and refuses to return anything at all for
+  the third, non-conformant posture of serving while recording nothing (§6.2).
 
 ## Quickstart
 
@@ -260,7 +271,8 @@ make test          # includes the cross-language conformance vectors
 | `src/auditable_mcp/ledger.py`         | per-partition sealed records + hash chain                       |
 | `src/auditable_mcp/verify.py`         | ledger verifier (recompute, tamper/gap/digest detection)        |
 | `src/auditable_mcp/storage/`          | `LedgerRepository` interface + in-memory implementation         |
-| `src/auditable_mcp/capability.py`     | §6.1 level negotiation (L2 ⊇ L1)                                 |
+| `src/auditable_mcp/capability.py`     | §6.1 negotiation on both axes, and the undeclared outcome        |
+| `src/auditable_mcp/degradation.py`    | §6.2 postures for a session that was not negotiated             |
 | `src/auditable_mcp/transport.py`      | tool/host transport seams + response builders                   |
 | `src/auditable_mcp/in_process.py`     | in-process transport                                            |
 | `src/auditable_mcp/clock.py`          | ISO-8601 timestamp source (`Clock` protocol)                    |
