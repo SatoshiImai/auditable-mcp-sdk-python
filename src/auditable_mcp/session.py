@@ -390,9 +390,18 @@ class AuditedAction:
     ) -> bool:
         """Emit success (body completed) or failed (body raised); never suppress the exception."""
         outcome = Outcome.FAILED if exc_type is not None else Outcome.SUCCESS
-        async with self._session._numbering:
-            await self._session._transport.send_outcome(await self._build(outcome))
-            # end async with
+        try:
+            async with self._session._numbering:
+                await self._session._transport.send_outcome(await self._build(outcome))
+                # end async with
+        except Exception:
+            # §6: an outcome is a notification with no response channel, so there is nothing to
+            # retry and nothing to tell the host; losing it leaves a completeness gap the host
+            # resolves on its own (§10.8). Raising here would replace the body's exception - the one
+            # the caller must act on - with the audit layer's, which is what this method promises
+            # not to do. The operation already happened either way.
+            _logger.error('could not emit the %s outcome; the operation is left unresolved (§10.8)', outcome)
+            # end try
         return False
         # end def
 

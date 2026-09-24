@@ -26,6 +26,11 @@ Breaking, tracking spec `auditable-mcp/0.3`.
   takes a `WitnessVerifier` (`WitnessRegistryVerifier`) and enforces §7.2's precedence — status, then
   the witness, then the hash. `SealedRecord` carries `host_signature` / `host_key_id` and omits them
   when absent, so an unwitnessed record persists byte-identically to before.
+- **The terminal outcome never replaces the body's error.** `__aexit__` promised not to suppress the
+  body's exception and then did, whenever emitting the outcome failed: the caller got the audit
+  layer's `ConnectionError` and their own error was demoted to `__context__`. An outcome has no
+  response channel (§6), so losing one is a completeness gap the host resolves (§10.8) - it is
+  logged, not raised.
 - **A tool-side failure is no longer reported as the host's.** Building the attempt signs it under
   Level 2, and that happened inside the transport-fault conversion, so a dead KMS surfaced as
   `AmcpAbortedError(host-unavailable)` - an operator sent to a host that was answering perfectly

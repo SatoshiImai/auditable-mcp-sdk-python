@@ -445,6 +445,59 @@ class _RefusingHost:
     # end class
 
 
+class _AcceptsThenDies:
+    """Accepts the attempt, then the wire dies before the outcome can be sent."""
+
+    def __init__(self) -> None:
+        """Declare an ordinary L1 capability."""
+        self.capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=Level.L1, attempt='request', witness=Witness.NONE
+        )
+        # end def
+
+    async def handle_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Accept, so the body runs."""
+        return accept(0, '0' * 64, '2026-07-15T00:00:01.000Z', '0' * 64)
+        # end def
+
+    async def handle_outcome(self, event: dict[str, object]) -> None:
+        """Fail, so the terminal emission is the thing that breaks."""
+        raise ConnectionError('the wire went away')
+        # end def
+
+    # end class
+
+
+class TestTheTerminalOutcomeNeverReplacesTheBodySError:
+    """§6, §10.8: an outcome has no response channel, and the body's error is the caller's."""
+
+    @pytest.mark.asyncio
+    async def test_the_body_s_exception_reaches_the_caller(self) -> None:
+        """`__aexit__` promises not to suppress it, and a failed emission must not substitute for it."""
+        session = AmcpSession(InProcessTransport(_AcceptsThenDies()), 'call-1', deps=_FixedDeps())
+        with pytest.raises(ValueError, match='the real problem'):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                raise ValueError('the real problem')
+                # end async with
+            # end with
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_successful_body_does_not_fail_on_a_lost_outcome(self) -> None:
+        """The operation already happened; the gap is the host's to resolve (§10.8), not an error here."""
+        session = AmcpSession(InProcessTransport(_AcceptsThenDies()), 'call-1', deps=_FixedDeps())
+        async with session.action(
+            'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+        ):
+            pass
+            # end async with
+        # end def
+
+    # end class
+
+
 class TestAToolSideFailureIsNotTheHostSFailure:
     """§7.2, §7.6: the Tier-1 abort reasons name the host, and a dead signer is not one of them."""
 
