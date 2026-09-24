@@ -467,7 +467,7 @@ class TestPerEventWire:
 async def _tool_on_a_bare_wire(
     *,
     request_timeout: float = CALL_TIMEOUT,
-) -> AsyncIterator[tuple[McpAuditTransport, MemoryObjectReceiveStream, MemoryObjectSendStream]]:
+) -> AsyncIterator[tuple[McpAuditTransport, MemoryObjectReceiveStream, MemoryObjectSendStream, _Drain]]:
     """A tool seam whose peer is this test, reading and writing the JSON-RPC frames directly."""
     async with create_client_server_memory_streams() as (client_streams, server_streams):
         async with McpAuditTransport(
@@ -479,7 +479,7 @@ async def _tool_on_a_bare_wire(
                 await client_streams[1].send(_initialize_request(declaring=TOOL_CAPABILITY))
                 await _settle(lambda: transport.handshake_seen)
                 transport.negotiate(TOOL_CAPABILITY)
-                yield transport, client_streams[0], client_streams[1]
+                yield transport, client_streams[0], client_streams[1], drain
                 tasks.cancel_scope.cancel()
                 # end async with
             # end async with
@@ -505,7 +505,7 @@ class TestWireForm:
     async def test_an_outcome_is_a_notification_carrying_the_event_itself(self) -> None:
         """`params` IS the audit event object, not a wrapper, and there is nothing to respond to."""
         event: dict[str, object] = {'event_id': 'e1', 'outcome': 'success'}
-        async with _tool_on_a_bare_wire() as (transport, peer_read, _peer_write):
+        async with _tool_on_a_bare_wire() as (transport, peer_read, _peer_write, _seen):
             await transport.send_outcome(event)
             frame = (await peer_read.receive()).message.root
             # end async with
@@ -518,7 +518,7 @@ class TestWireForm:
         """An MCP session numbers its own requests with integers; a collision would cross the two."""
         event: dict[str, object] = {'event_id': 'e1', 'outcome': 'attempted'}
         decisions: list[AttemptResponse] = []
-        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write):
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
             async with anyio.create_task_group() as tasks:
                 tasks.start_soon(_attempt, transport, event, decisions)
                 frame = (await peer_read.receive()).message.root
@@ -536,7 +536,7 @@ class TestWireForm:
     async def test_a_json_rpc_error_for_an_attempt_is_read_as_a_failure_to_record(self) -> None:
         """§6 reserves errors for protocol faults and requires the tool to fail closed on one."""
         decisions: list[AttemptResponse] = []
-        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write):
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
             with anyio.fail_after(1.0):
                 async with anyio.create_task_group() as tasks:
                     tasks.start_soon(_attempt, transport, {'event_id': 'e1'}, decisions)
@@ -554,7 +554,7 @@ class TestWireForm:
     async def test_an_error_beside_a_result_is_still_an_error(self) -> None:
         """A frame carrying both is not valid JSON-RPC, and reading the result would clear an operation."""
         decisions: list[AttemptResponse] = []
-        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write):
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
             with anyio.fail_after(1.0):
                 async with anyio.create_task_group() as tasks:
                     tasks.start_soon(_attempt, transport, {'event_id': 'e1'}, decisions)
@@ -575,7 +575,7 @@ class TestWireForm:
     async def test_a_decision_the_tool_cannot_read_is_a_decision_it_did_not_get(self) -> None:
         """A result that does not validate leaves the tool with nothing recorded, which is `unavailable`."""
         decisions: list[AttemptResponse] = []
-        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write):
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
             with anyio.fail_after(1.0):
                 async with anyio.create_task_group() as tasks:
                     tasks.start_soon(_attempt, transport, {'event_id': 'e1'}, decisions)
@@ -776,6 +776,67 @@ class TestOverALiveMcpSession:
             assert [record.event['outcome'] for record in tool_local.records()] == ['attempted', 'success']
             assert all(record.host_signature is None for record in tool_local.records())
             # end async with
+        # end def
+
+    # end class
+
+
+def _tools_call(request_id: str | int) -> SessionMessage:
+    """A `tools/call` request, the parent §4's `call_id` names."""
+    return SessionMessage(
+        message=JSONRPCMessage(JSONRPCRequest(jsonrpc='2.0', id=request_id, method='tools/call', params={}))
+    )
+    # end def
+
+
+class TestAuditFramesRideTheCall:
+    """§4, §6: the audit frames name the `tools/call` they belong to."""
+
+    async def test_it_names_the_request_in_flight_in_the_form_the_transport_routes_on(self) -> None:
+        """§4 carries a numeric id as its decimal string; the transport routes on the number it was."""
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
+            await peer_write.send(_tools_call(42))
+            await _settle(lambda: 'tools/call' in session_saw.methods())
+            await transport.send_outcome({'call_id': '42', 'outcome': 'success'})
+            with anyio.fail_after(1.0):
+                message = await peer_read.receive()
+                # end with
+            # end async with
+        assert message.metadata is not None
+        assert message.metadata.related_request_id == 42
+        # end def
+
+    async def test_it_keeps_a_string_id_a_string(self) -> None:
+        """A host may use string ids, and they are a different key to the transport."""
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
+            await peer_write.send(_tools_call('call-abc'))
+            await _settle(lambda: 'tools/call' in session_saw.methods())
+            await transport.send_outcome({'call_id': 'call-abc', 'outcome': 'success'})
+            with anyio.fail_after(1.0):
+                message = await peer_read.receive()
+                # end with
+            # end async with
+        assert message.metadata is not None
+        assert message.metadata.related_request_id == 'call-abc'
+        # end def
+
+    async def test_it_names_nothing_when_the_call_is_no_longer_in_flight(self) -> None:
+        """An outcome that arrives after the session answered the call has no stream to ride."""
+        async with _tool_on_a_bare_wire() as (transport, peer_read, peer_write, session_saw):
+            await peer_write.send(_tools_call(42))
+            await _settle(lambda: 'tools/call' in session_saw.methods())
+            # The session answers the call, so the request leaves flight.
+            answer = JSONRPCResponse(jsonrpc='2.0', id=42, result={'content': []})
+            await transport.write_stream.send(SessionMessage(message=JSONRPCMessage(answer)))
+            with anyio.fail_after(1.0):
+                await peer_read.receive()
+                # end with
+            await transport.send_outcome({'call_id': '42', 'outcome': 'success'})
+            with anyio.fail_after(1.0):
+                message = await peer_read.receive()
+                # end with
+            # end async with
+        assert message.metadata is None
         # end def
 
     # end class

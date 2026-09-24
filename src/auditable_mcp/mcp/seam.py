@@ -20,6 +20,12 @@ Three §6 obligations live here and nowhere else in this SDK:
   `unavailable`, which aborts the action rather than letting it run unrecorded (§7.2).
 - Nothing is sent in an unnegotiated session (§6.2). `negotiate` is what opens the send path, so a
   transport that never negotiated, or negotiated and did not fit, refuses to send at all.
+
+The audit frames also ride the `tools/call` they belong to. §4 defines `call_id` as that call's
+JSON-RPC request id as a string, so the seam keeps the live inbound requests and tags its own frames
+with the original id. On stdio this changes nothing; on a Streamable HTTP connection it is what puts
+a server-to-client request on the stream of the request in flight rather than on a standalone one
+the host may never have opened.
 """
 
 from __future__ import annotations
@@ -32,7 +38,7 @@ import anyio
 import anyio.abc
 from anyio import BrokenResourceError, ClosedResourceError
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from mcp.shared.message import SessionMessage
+from mcp.shared.message import ServerMessageMetadata, SessionMessage
 from mcp.types import (
     INVALID_REQUEST,
     ErrorData,
@@ -126,6 +132,8 @@ class _FrameSeam:
         # the order messages leave in is the order they were produced in.
         self._frames_out = self._session_write.clone()
         self._task_group: anyio.abc.TaskGroup | None = None
+        # The inbound requests still in flight, by the string form §4 gives their ids.
+        self._live: dict[str, str | int] = {}
         # end def
 
     @property
@@ -172,7 +180,10 @@ class _FrameSeam:
             async for message in self._outer_read:
                 if isinstance(message, Exception):
                     await self._to_session.send(message)
-                elif not await self._intercept(message.message.root):
+                    continue
+                    # end if
+                self._track(message.message.root)
+                if not await self._intercept(message.message.root):
                     await self._to_session.send(message)
                     # end if
                 # end for
@@ -188,6 +199,7 @@ class _FrameSeam:
         try:
             async for message in self._from_session:
                 self._declare_on(message.message.root)
+                self._retire(message.message.root)
                 await self._outer_write.send(message)
                 # end for
         except (BrokenResourceError, ClosedResourceError):
@@ -195,9 +207,33 @@ class _FrameSeam:
             # end try
         # end def
 
-    async def _send_frame(self, frame: Frame) -> None:
+    async def _send_frame(self, frame: Frame, related_request_id: str | int | None = None) -> None:
         """Queue one JSON-RPC message for the peer. One message per frame, never an array (§6)."""
-        await self._frames_out.send(SessionMessage(message=JSONRPCMessage(frame)))
+        metadata = None if related_request_id is None else ServerMessageMetadata(related_request_id=related_request_id)
+        await self._frames_out.send(SessionMessage(message=JSONRPCMessage(frame), metadata=metadata))
+        # end def
+
+    def _related_request_id(self, call_id: object) -> str | int | None:
+        """The id §4's `call_id` names, if that call is still in flight.
+
+        The string form is what the event carries; the transport routes on the original, so a numeric
+        id must come back as the number it was - `42` and `"42"` are different requests to it.
+        """
+        return self._live.get(call_id) if isinstance(call_id, str) else None
+        # end def
+
+    def _track(self, frame: Frame) -> None:
+        """Remember an inbound request while it is in flight."""
+        if isinstance(frame, JSONRPCRequest):
+            self._live[str(frame.id)] = frame.id
+            # end if
+        # end def
+
+    def _retire(self, frame: Frame) -> None:
+        """A request leaves flight when its response goes out."""
+        if isinstance(frame, JSONRPCResponse | JSONRPCError):
+            self._live.pop(str(frame.id), None)
+            # end if
         # end def
 
     async def _intercept(self, frame: Frame) -> bool:
@@ -293,7 +329,8 @@ class McpAuditTransport(_FrameSeam):
         self._pending[request_id] = pending
         try:
             await self._send_frame(
-                JSONRPCRequest(jsonrpc='2.0', id=request_id, method=ATTEMPT_METHOD, params=dict(event))
+                JSONRPCRequest(jsonrpc='2.0', id=request_id, method=ATTEMPT_METHOD, params=dict(event)),
+                self._related_request_id(event.get('call_id')),
             )
             with anyio.move_on_after(self._request_timeout):
                 await pending.arrived.wait()
@@ -315,7 +352,10 @@ class McpAuditTransport(_FrameSeam):
         """Send `audit/outcome` as a notification: reported, not awaited (§6)."""
         self._require_negotiated()
         try:
-            await self._send_frame(JSONRPCNotification(jsonrpc='2.0', method=OUTCOME_METHOD, params=dict(event)))
+            await self._send_frame(
+                JSONRPCNotification(jsonrpc='2.0', method=OUTCOME_METHOD, params=dict(event)),
+                self._related_request_id(event.get('call_id')),
+            )
         except (BrokenResourceError, ClosedResourceError):
             # An outcome has no response channel and no retry in §6; the host detects the gap by the
             # attempt it sealed and never saw resolved, which is what §7.5 is for.
