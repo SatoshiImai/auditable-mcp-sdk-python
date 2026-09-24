@@ -11,6 +11,7 @@ fleet.
 
 import base64
 import binascii
+from collections.abc import Mapping
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -140,8 +141,22 @@ class KeyRegistryVerifier:
         self._hash_algorithm = hash_algorithm
         # end def
 
+    def check(self, event: Mapping[str, object]) -> bool:
+        """Return True if the event's own Level-2 signature verifies (synchronous, §7.4).
+
+        Offline ledger verification (§11.4) is synchronous and reads stored records, so it uses this;
+        `verify` is the async host-side form that reports which Tier-1 reason applies.
+        """
+        return self._reject_reason(dict(event)) is None
+        # end def
+
     async def verify(self, event: dict[str, object]) -> RejectReason | None:
         """Return `unknown-key` / `signature-invalid`, or None if the signature verifies (local)."""
+        return self._reject_reason(event)
+        # end def
+
+    def _reject_reason(self, event: dict[str, object]) -> RejectReason | None:
+        """Resolve the key and dispatch to the bound algorithm (§5.1); None if it verifies."""
         key_id = event.get(fields.KEY_ID)
         entry = self._registry.get(key_id) if isinstance(key_id, str) else None
         if entry is None:

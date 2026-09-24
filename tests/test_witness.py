@@ -669,3 +669,75 @@ def test_the_whole_witness_axis_is_on_the_public_surface() -> None:
         assert hasattr(auditable_mcp, name), name
         # end for
     # end def
+
+
+def test_a_level_2_tool_cannot_switch_polluted_stop_off() -> None:
+    """§11.3 makes it REQUIRED under Level 2; a signer is this SDK's Level-2 marker (§7.2)."""
+
+    class _Signer:
+        async def sign(self, event: dict[str, object]) -> dict[str, object]:
+            return event
+            # end def
+
+        # end class
+
+    endpoint = _CannedEndpoint(_canned())
+    with pytest.raises(ValueError, match='Polluted Stop'):
+        AmcpSession(InProcessTransport(endpoint), 'call-1', signer=_Signer(), polluted_stop=False)
+        # end with
+    # end def
+
+
+def _l2_record(seq: int, signer_seq: int, previous: str, *, key_id: str = 'k1') -> SealedRecord:
+    """A sealed record carrying Level-2 fields, chained onto `previous`."""
+    event = {
+        **_event(f'00000000-0000-4000-8000-00000000000{seq + 1}'),
+        'key_id': key_id,
+        'signer_seq': signer_seq,
+        'signature': 'ZmFrZQ==',
+    }
+    host_ts = f'2026-07-15T00:00:{seq + 2:02d}.000Z'
+    return SealedRecord(
+        event=event,
+        seq=seq,
+        host_ts=host_ts,
+        previous_hash=previous,
+        record_hash=compute_record_hash(event, seq, host_ts, previous),
+    )
+    # end def
+
+
+def test_a_forward_signer_seq_gap_is_reported() -> None:
+    """§7.4, §11.4: the one suppression signal a ledger carries, computable with no registry."""
+    first = _l2_record(0, 1, '0' * 64)
+    second = _l2_record(1, 5, first.record_hash)
+    report = verify_ledger([first, second])
+    assert 'signer-seq-gap' in {issue.kind for issue in report.issues}
+    # end def
+
+
+def test_contiguous_signer_seqs_are_not_a_gap() -> None:
+    """Attempts and their outcomes both consume a signer_seq, so N and N+1 are contiguous (§7.4)."""
+    first = _l2_record(0, 1, '0' * 64)
+    second = _l2_record(1, 2, first.record_hash)
+    report = verify_ledger([first, second])
+    assert 'signer-seq-gap' not in {issue.kind for issue in report.issues}
+    # end def
+
+
+def test_a_supplied_signature_checker_reports_an_invalid_one() -> None:
+    """A verifier holding the registry can perform §11.4's Level-2 Validation, not only skip it."""
+    record = _l2_record(0, 1, '0' * 64)
+    report = verify_ledger([record], signature_checker=lambda _event: False)
+    assert not report.ok
+    assert 'signature-invalid' in {issue.kind for issue in report.issues}
+    assert report.unchecked == (), 'it was checked, so nothing is unchecked'
+    # end def
+
+
+def test_without_a_signature_checker_the_level_2_records_are_unchecked() -> None:
+    """The alternative to verifying is saying so, never reporting a clean result (§11.4)."""
+    report = verify_ledger([_l2_record(0, 1, '0' * 64)])
+    assert report.ok
+    assert report.unchecked == ('level-2-signature',)
+    # end def

@@ -23,6 +23,8 @@ RECORD_HASH_MISMATCH = reasons.RECORD_HASH_MISMATCH
 DIGEST_MISMATCH = reasons.DIGEST_MISMATCH
 PRINCIPAL_MISMATCH = reasons.PRINCIPAL_MISMATCH
 ORPHANED_OUTCOME = reasons.ORPHANED_OUTCOME
+SIGNATURE_INVALID = reasons.SIGNATURE_INVALID
+SIGNER_SEQ_GAP = reasons.SIGNER_SEQ_GAP
 HOST_SIGNATURE_INVALID = reasons.HOST_SIGNATURE_INVALID
 
 
@@ -30,6 +32,10 @@ HOST_SIGNATURE_INVALID = reasons.HOST_SIGNATURE_INVALID
 # because offline ledger verification reads stored records and does no I/O; `WitnessRegistryVerifier.check`
 # is the registry-backed implementation.
 WitnessChecker = Callable[[str, str, bytes], bool]
+
+# Verifies a sealed Level-2 event's own `signature` against the out-of-band key registry (§7.4).
+# Synchronous for the same reason as WitnessChecker; `KeyRegistryVerifier.check` implements it.
+SignatureChecker = Callable[[Mapping[str, object]], bool]
 
 
 @dataclass(frozen=True)
@@ -134,6 +140,7 @@ def verify_chain(
     adapter: RecordAdapter = DEFAULT_ADAPTER,
     expected_principal: object | None = None,
     witness_checker: WitnessChecker | None = None,
+    signature_checker: SignatureChecker | None = None,
 ) -> VerifyReport:
     """Verify chain integrity alone, independent of the event vocabulary (§8.3).
 
@@ -157,6 +164,9 @@ def verify_chain(
             host-assigned fields (§7.1). A record carrying no signature is unwitnessed, which is a
             state and not an anomaly (§5.2); one whose signature fails is `host-signature-invalid`.
             Without a checker, records that do carry signatures are counted in `unchecked` (§11.4).
+        signature_checker: Verifies a sealed Level-2 event's own `signature` against the key registry
+            (§7.4). Optional for a pure ledger auditor (§10.6); without it, records carrying a
+            `signature` are counted in `unchecked` rather than reported as verified (§11.4).
 
     Returns:
         A report; `ok` is True only when no issues were found.
@@ -166,6 +176,7 @@ def verify_chain(
     prev_recomputed = GENESIS_HASH
     witness_unchecked = False
     l2_unchecked = False
+    last_signer_seq: dict[str, int] = {}
 
     for index, record in enumerate(records):
         event = record.event
@@ -230,8 +241,36 @@ def verify_chain(
         # event, and its signature, inside it, so a top-level lookup would miss exactly the deployment
         # §10.10 recommends and report a complete verification of signatures nobody checked.
         inner = adapter.event_of(event)
-        if isinstance(inner, Mapping) and inner.get(fields.SIGNATURE) is not None:
+        signed = isinstance(inner, Mapping) and inner.get(fields.SIGNATURE) is not None
+        if signed and signature_checker is None:
             l2_unchecked = True
+        elif signed and signature_checker is not None:
+            assert isinstance(inner, Mapping)
+            if not signature_checker(inner):
+                issues.append(
+                    VerifyIssue(seq=record.seq, kind=SIGNATURE_INVALID, detail='event signature does not verify')
+                )
+                # end if
+            # end if
+
+        # §7.4 / §11.4: a forward gap in a partition-bound `key_id` may mark a suppressed event. It is
+        # computable from the records alone - no registry - so a verifier that omits it is silently
+        # dropping the one suppression signal the ledger carries.
+        if isinstance(inner, Mapping):
+            key_id, signer_seq = inner.get(fields.KEY_ID), inner.get(fields.SIGNER_SEQ)
+            if isinstance(key_id, str) and isinstance(signer_seq, int):
+                last = last_signer_seq.get(key_id)
+                if last is not None and signer_seq > last + 1:
+                    issues.append(
+                        VerifyIssue(
+                            seq=record.seq,
+                            kind=SIGNER_SEQ_GAP,
+                            detail=f'signer_seq jumped {last} -> {signer_seq} for key_id {key_id!r}',
+                        )
+                    )
+                    # end if
+                last_signer_seq[key_id] = signer_seq
+                # end if
             # end if
 
         # Witness determination (§11.4): by the signature alone, never inferred from another field.
@@ -295,6 +334,7 @@ def verify_ledger(
     adapter: RecordAdapter = DEFAULT_ADAPTER,
     expected_principal: object | None = None,
     witness_checker: WitnessChecker | None = None,
+    signature_checker: SignatureChecker | None = None,
 ) -> VerifyReport:
     """Verify chain integrity and A-MCP event-schema conformance (§8.3 + §7.1).
 
@@ -321,6 +361,7 @@ def verify_ledger(
         adapter=adapter,
         expected_principal=expected_principal,
         witness_checker=witness_checker,
+        signature_checker=signature_checker,
     )
     schema_issues = [
         VerifyIssue(seq=record.seq, kind=reasons.SCHEMA_INVALID, detail=error)

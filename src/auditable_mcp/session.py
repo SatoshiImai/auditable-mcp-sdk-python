@@ -139,6 +139,12 @@ class AmcpSession:
         if require_witness and witness_verifier is None:
             raise ValueError('require_witness needs a WitnessVerifier')
             # end if
+        # §11.3 makes Polluted Stop REQUIRED under Level 2 and OPTIONAL under Level 1. A signer is this
+        # SDK's Level-2 marker, so switching the check off while signing is a configuration the
+        # specification does not allow, and the default already does the right thing.
+        if polluted_stop is False and signer is not None:
+            raise ValueError('Polluted Stop is REQUIRED under Level 2 (§7.2, §11.3)')
+            # end if
         self._transport = transport
         self._call_id = call_id
         self._signer = signer

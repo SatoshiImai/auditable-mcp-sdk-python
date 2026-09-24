@@ -90,6 +90,7 @@ from auditable_mcp.transport import (
 from auditable_mcp.verify import (
     DEFAULT_ADAPTER,
     RecordAdapter,
+    SignatureChecker,
     VerifyIssue,
     VerifyReport,
     WitnessChecker,
@@ -164,6 +165,7 @@ __all__ = [
     'sha256_hex',
     'sign_event',
     'SignatureAlgorithm',
+    'SignatureChecker',
     'SignatureVerifier',
     'SPEC_VERSION',
     'Status',
