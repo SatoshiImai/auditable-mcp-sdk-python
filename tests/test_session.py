@@ -533,3 +533,27 @@ class TestAToolSideFailureIsNotTheHostSFailure:
         # end def
 
     # end class
+
+
+@pytest.mark.asyncio
+async def test_the_decorator_audits_a_synchronous_function() -> None:
+    """A tool's operation need not be async; the wrapper awaits only what is awaitable."""
+    host = AuditHost('tenant-a')
+    session = AmcpSession(InProcessTransport(host), 'call-1', deps=_FixedDeps())
+
+    @auditable_tool(
+        action_type='db.read',
+        target_resource={'kind': 'table', 'ref': 'customers'},
+        mutates=False,
+        egress=False,
+    )
+    def read_rows() -> int:
+        """A synchronous domain operation."""
+        return 7
+        # end def
+
+    with bound_session(session):
+        assert await read_rows() == 7
+        # end with
+    assert [record.event['outcome'] for record in host.records()] == ['attempted', 'success']
+    # end def

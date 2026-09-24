@@ -2,12 +2,19 @@
 
 from typing import Any
 
+import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
-from auditable_mcp.l2.adapters.aws_kms import AwsKmsSigner, AwsKmsVerifier
+from auditable_mcp.l2.adapters.aws_kms import (
+    AwsKmsSigner,
+    AwsKmsVerifier,
+    _require_bytes,
+    load_kms_public_key,
+)
 from auditable_mcp.l2.keys import KeyRegistry
 from auditable_mcp.models import SPEC_VERSION, AuditCapability, Level, Witness
 from auditable_mcp.session import AmcpSession
@@ -148,4 +155,37 @@ async def test_end_to_end_kms_without_stubs() -> None:
     assert [r.event['key_id'] for r in records] == ['tool-1', 'tool-1']
     assert host.anomalies() == []
     assert verify_ledger(records, host.digest()).ok
+    # end def
+
+
+def test_a_kms_response_without_the_bytes_field_is_refused() -> None:
+    """An injected client is third-party code; a malformed answer is named, not indexed into."""
+    with pytest.raises(ValueError, match='Signature'):
+        _require_bytes({}, 'Signature')
+        # end with
+    # end def
+
+
+@pytest.mark.asyncio
+async def test_a_kms_key_that_is_not_elliptic_curve_is_refused() -> None:
+    """The adapter signs ECDSA P-256 (§5.1); an RSA or Ed25519 KMS key is a provisioning error."""
+    der = (
+        Ed25519PrivateKey.generate()
+        .public_key()
+        .public_bytes(encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo)
+    )
+
+    class _Client:
+        """A KMS client holding a key the adapter cannot sign with."""
+
+        def get_public_key(self, **_kwargs: object) -> dict[str, bytes]:
+            """Return the Ed25519 key's DER form."""
+            return {'PublicKey': der}
+            # end def
+
+        # end class
+
+    with pytest.raises(TypeError, match='elliptic-curve'):
+        await load_kms_public_key(_Client(), 'arn:aws:kms:::key/x')  # type: ignore[arg-type]
+        # end with
     # end def

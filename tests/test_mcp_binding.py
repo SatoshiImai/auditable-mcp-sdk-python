@@ -43,6 +43,7 @@ from auditable_mcp.mcp import (
     declare_into,
 )
 from auditable_mcp.models import (
+    EXTENSION_ID,
     SPEC_VERSION,
     AttemptResponse,
     AuditCapability,
@@ -885,6 +886,41 @@ class TestTheLiveCallMapDoesNotGrow:
                 # end with
             assert '7' not in _live_of(transport)
             # end async with
+        # end def
+
+    # end class
+
+
+class TestTheSeamsEdges:
+    """Paths that exist for a peer or a caller behaving unusually, not for the happy wire."""
+
+    async def test_a_transport_error_reaches_the_session(self) -> None:
+        """A stream may hand up an exception; the seam is not the place it disappears."""
+        async with create_client_server_memory_streams() as (client_streams, server_streams):
+            async with McpAuditTransport(server_streams[0], server_streams[1], TOOL_CAPABILITY) as transport:
+                drain = _Drain()
+                async with anyio.create_task_group() as tasks:
+                    tasks.start_soon(drain.run, transport.read_stream)
+                    await client_streams[1].send(ValueError('the transport failed'))
+                    await _settle(lambda: len(drain.seen) == 1)
+                    tasks.cancel_scope.cancel()
+                    # end async with
+                # end async with
+            # end async with
+        assert isinstance(drain.seen[0], ValueError)
+        # end def
+
+    async def test_closing_a_seam_that_was_never_entered_is_harmless(self) -> None:
+        """An integrator who builds one and then fails before starting it gets no second failure."""
+        async with create_client_server_memory_streams() as (_client, server_streams):
+            seam = McpAuditTransport(server_streams[0], server_streams[1], TOOL_CAPABILITY)
+            await seam.__aexit__(None, None, None)
+            # end async with
+        # end def
+
+    def test_a_declaration_held_as_a_model_reads_the_same_as_one_on_the_wire(self) -> None:
+        """A typed `ServerCapabilities` holds the settings object as a model, not a mapping (§6.1)."""
+        assert capability_of(ServerCapabilities(extensions={EXTENSION_ID: TOOL_CAPABILITY})) == TOOL_CAPABILITY
         # end def
 
     # end class

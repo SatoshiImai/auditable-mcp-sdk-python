@@ -21,6 +21,8 @@ from auditable_mcp.l2 import (
     reconcile,
     sign_event,
     signature_payload,
+    verify_detached_signature,
+    verify_ecdsa_signature,
     verify_ed25519_signature,
 )
 from auditable_mcp.ledger import Ledger
@@ -322,3 +324,79 @@ class TestRegistryEntriesAreConforming:
         # end def
 
     # end class
+
+
+class TestASignatureOfTheWrongShape:
+    """§5.1: undecodable base64, or the wrong length for the bound algorithm, is a failed verification."""
+
+    def test_a_non_string_signature_does_not_verify(self) -> None:
+        """The field is pinned to a string; anything else decodes to nothing."""
+        key = generate_tool_key('k')
+        event = {**_event(), 'signature': 12345}
+        assert verify_ed25519_signature(event, key.public_key) is False
+        # end def
+
+    def test_an_undecodable_signature_does_not_verify(self) -> None:
+        """Not base64 at all (§5.1 pins the standard alphabet)."""
+        key = generate_tool_key('k')
+        assert verify_ed25519_signature({**_event(), 'signature': 'not base64!'}, key.public_key) is False
+        # end def
+
+    def test_an_ecdsa_signature_of_the_wrong_length_does_not_verify(self) -> None:
+        """§5.1 pins the fixed 64-byte P1363 r||s form, so a DER blob is a failed verification."""
+        ec_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+        short = base64.b64encode(b'\x00' * 8).decode('ascii')
+        assert verify_ecdsa_signature({**_event(), 'signature': short}, ec_key) is False
+        # end def
+
+    def test_a_detached_signature_of_the_wrong_length_does_not_verify(self) -> None:
+        """The same rule on the witness preimage (§7.1)."""
+        registry = KeyRegistry(KeyRole.HOST)
+        ec_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+        registry.register('h1', ec_key, SignatureAlgorithm.ECDSA_P256_SHA256)
+        entry = registry.get('h1')
+        assert entry is not None
+        short = base64.b64encode(b'\x00' * 8).decode('ascii')
+        assert verify_detached_signature(b'payload', short, entry) is False
+        # end def
+
+    # end class
+
+
+def test_an_undecodable_detached_signature_does_not_verify() -> None:
+    """§7.1's witness signature is standard base64 like any other (§5.1)."""
+    registry = KeyRegistry(KeyRole.HOST)
+    key = generate_tool_key('h1')
+    registry.register('h1', key.public_key, SignatureAlgorithm.ED25519)
+    entry = registry.get('h1')
+    assert entry is not None
+    assert verify_detached_signature(b'payload', 'not base64!', entry) is False
+    # end def
+
+
+def test_an_ecdsa_witness_signature_verifies_against_its_registry_entry() -> None:
+    """A heterogeneous fleet witnesses with KMS keys too, so the detached path runs both algorithms."""
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    registry = KeyRegistry(KeyRole.HOST)
+    registry.register('h-ec', private_key.public_key(), SignatureAlgorithm.ECDSA_P256_SHA256)
+    entry = registry.get('h-ec')
+    assert entry is not None
+    payload = b'{"host_ts":"2026-07-15T00:00:01.000Z"}'
+    der = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
+    r, s = decode_dss_signature(der)
+    raw = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
+    assert verify_detached_signature(payload, base64.b64encode(raw).decode('ascii'), entry) is True
+    assert verify_detached_signature(b'other payload', base64.b64encode(raw).decode('ascii'), entry) is False
+    # end def
+
+
+def test_the_offline_signature_checker_matches_the_host_side_verdict() -> None:
+    """§11.4's verifier is synchronous and reads stored records; the two forms must agree."""
+    key = generate_tool_key('k1')
+    registry = KeyRegistry()
+    registry.register_tool_key(key)
+    checker = KeyRegistryVerifier(registry)
+    signed_event = sign_event(_event(), 'k1', 0, key.private_key)
+    assert checker.check(signed_event) is True
+    assert checker.check({**signed_event, 'signature': base64.b64encode(b'\x00' * 64).decode('ascii')}) is False
+    # end def

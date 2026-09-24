@@ -362,3 +362,16 @@ class TestAnOutcomeThatFailsLevel2Validation:
         # end def
 
     # end class
+
+
+@pytest.mark.asyncio
+async def test_an_outcome_with_an_uncanonicalizable_number_is_dropped_and_flagged() -> None:
+    """§8.1 applies on both channels, and §6 leaves the anomaly set as the only place to say so."""
+    host = AuditHost('tenant-a', clock=_Clock())
+    attempt = _attempt('00000000-0000-4000-8000-000000000001')
+    await host.handle_attempt(attempt)
+    before = len(host.records())
+    await host.handle_outcome({**attempt, 'outcome': 'success', 'action_context': {'rows': 2**53}})
+    assert len(host.records()) == before, 'an uncanonicalizable outcome was sealed'
+    assert 'schema-invalid' in [anomaly.kind for anomaly in host.anomalies()]
+    # end def

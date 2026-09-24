@@ -146,3 +146,21 @@ def test_unavailable_must_be_retryable() -> None:
         _ADAPTER.validate_python({'status': 'unavailable', 'reason': 'x', 'retryable': False})
         # end with
     # end def
+
+
+def test_a_half_present_witness_pair_is_refused() -> None:
+    """§7.1: `host_signature` and `host_key_id` appear together or not at all, on the wire too."""
+    base = {
+        'status': 'accept',
+        'seq': 0,
+        'record_hash': '0' * 64,
+        'host_ts': '2026-07-15T00:00:01.000Z',
+        'previous_hash': '0' * 64,
+    }
+    assert _ADAPTER.validate_python(base) is not None
+    for half in ({'host_signature': 'AAAA'}, {'host_key_id': 'h1'}):
+        with pytest.raises(ValidationError):
+            _ADAPTER.validate_python({**base, **half})
+            # end with
+        # end for
+    # end def

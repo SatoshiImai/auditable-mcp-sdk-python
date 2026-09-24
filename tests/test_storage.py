@@ -220,3 +220,12 @@ async def test_outcome_persistence_failure_is_logged_not_flagged(caplog: pytest.
     assert len(host.records()) == 1
     assert any('could not persist' in record.message for record in caplog.records)
     # end def
+
+
+def test_resuming_an_empty_partition_starts_at_genesis() -> None:
+    """A host resuming a partition that holds nothing is a fresh chain, not an error."""
+    ledger = Ledger('tenant-a')
+    ledger.resume_from(None)
+    assert ledger.digest() == GENESIS_HASH
+    assert len(ledger) == 0
+    # end def
