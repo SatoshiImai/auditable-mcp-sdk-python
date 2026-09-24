@@ -46,6 +46,7 @@ from auditable_mcp.l2 import (
     generate_tool_key,
     reconcile,
     sign_event,
+    signature_payload,
     verify_detached_signature,
     verify_ecdsa_signature,
     verify_ed25519_signature,
@@ -70,6 +71,7 @@ from auditable_mcp.models import (
     UnavailableResponse,
     WireModel,
     Witness,
+    first_sealed_validation_error,
     first_validation_error,
 )
 from auditable_mcp.session import (
@@ -133,6 +135,7 @@ __all__ = [
     'EgressObservation',
     'EventSigner',
     'EXTENSION_ID',
+    'first_sealed_validation_error',
     'first_validation_error',
     'generate_tool_key',
     'GENESIS_HASH',
@@ -166,6 +169,7 @@ __all__ = [
     'RepositoryError',
     'SealedRecord',
     'sha256_hex',
+    'signature_payload',
     'sign_event',
     'SignatureAlgorithm',
     'SignatureChecker',

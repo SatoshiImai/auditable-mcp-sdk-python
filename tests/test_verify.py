@@ -3,6 +3,8 @@
 import dataclasses
 from typing import Any, cast
 
+import pytest
+
 from auditable_mcp.ledger import Ledger, SealedRecord
 from auditable_mcp.models import SPEC_VERSION, first_sealed_validation_error, first_validation_error
 from auditable_mcp.verify import RecordAdapter, verify_chain, verify_ledger
@@ -363,3 +365,22 @@ def test_verify_chain_detects_a_seq_gap_on_a_non_amcp_envelope() -> None:
     del records[1]
     assert 'seq-gap' in {issue.kind for issue in verify_chain(records).issues}
     # end def
+
+
+class TestThePrincipalIsComparedAsAValue:
+    """§11.4: two conforming verifiers must not return opposite verdicts on one ledger."""
+
+    def test_a_structured_expectation_is_refused(self) -> None:
+        """§10.10 binds a single primitive; a structure compares differently in each port."""
+        with pytest.raises(ValueError, match='primitive'):
+            verify_chain([], expected_principal={'tenant': 'a'})
+            # end with
+        # end def
+
+    def test_a_primitive_expectation_is_compared(self) -> None:
+        """The form §10.10 actually binds still works, and an unbound record still mismatches."""
+        report = verify_chain([], expected_principal='tenant-a')
+        assert report.ok
+        # end def
+
+    # end class

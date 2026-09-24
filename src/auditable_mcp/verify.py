@@ -171,6 +171,14 @@ def verify_chain(
     Returns:
         A report; `ok` is True only when no issues were found.
     """
+    # §11.4 compares the expectation and the bound identity as values. A structured expectation would
+    # be compared by value here and by identity in the TypeScript port, so two conforming verifiers
+    # would return opposite verdicts on one ledger; §10.10 binds a single primitive, so it is refused.
+    if expected_principal is not None and not isinstance(expected_principal, str | int | float | bool):
+        raise ValueError(
+            'the expected principal is compared as a value; reduce a structured identity to a primitive (§10.10, §11.4)'
+        )
+        # end if
     issues: list[VerifyIssue] = []
     attempted_ids: set[object] = set()
     prev_recomputed = GENESIS_HASH

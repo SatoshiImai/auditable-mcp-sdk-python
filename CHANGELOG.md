@@ -31,6 +31,9 @@ Breaking, tracking spec `auditable-mcp/0.3`.
   tail, take the same `seq` and `previous_hash`, and are all answered `accept` - the tool acts on
   records the ledger cannot hold. The in-memory, unwitnessed host was the only configuration without
   the window, which is why the suite never saw it. `anyio` joins the core dependencies for the lock.
+- **`signature_payload` and `first_sealed_validation_error`** are exported from the package root,
+  where their counterparts already were (`witness_payload`, `first_validation_error`) and where the
+  TypeScript port already had them.
 - **`degradation.transport_for`** picks what §6.2 permits for a session that was not negotiated, and
   refuses to return a transport for the third, non-conformant posture.
 - **The MCP wire binding** (`auditable_mcp.mcp`, optional extra `[mcp]`). `McpAuditTransport` (tool)
