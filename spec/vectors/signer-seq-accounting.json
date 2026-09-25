@@ -1,0 +1,327 @@
+[
+  {
+    "name": "contiguous",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 1
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 2
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "failed",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 3
+      }
+    ],
+    "unaccounted": []
+  },
+  {
+    "name": "rejected-attempt-accounted-by-its-refusal",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 1
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "aborted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 3,
+        "reason": "host-rejected"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 4
+      }
+    ],
+    "unaccounted": []
+  },
+  {
+    "name": "missing-value-without-a-refusal",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 2
+      }
+    ],
+    "unaccounted": [
+      {
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "first": 1,
+        "last": 1
+      }
+    ]
+  },
+  {
+    "name": "first-value-not-zero",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "aborted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 2,
+        "reason": "host-unavailable"
+      }
+    ],
+    "unaccounted": [
+      {
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "first": 1,
+        "last": 1
+      }
+    ]
+  },
+  {
+    "name": "two-sessions-each-from-zero",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc1",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 1
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc1",
+        "signer_seq": 1
+      }
+    ],
+    "unaccounted": []
+  },
+  {
+    "name": "abort-after-accept-accounts-for-nothing",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "aborted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 2,
+        "reason": "hash-mismatch"
+      }
+    ],
+    "unaccounted": [
+      {
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "first": 1,
+        "last": 1
+      }
+    ]
+  },
+  {
+    "name": "refusal-correlates-within-its-own-session",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "aborted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc1",
+        "signer_seq": 1,
+        "reason": "host-rejected"
+      }
+    ],
+    "unaccounted": []
+  },
+  {
+    "name": "refusal-after-an-interleaved-attempt",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 2
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "aborted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 3,
+        "reason": "host-rejected"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 4
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 5
+      }
+    ],
+    "unaccounted": []
+  },
+  {
+    "name": "a-run-of-missing-values",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "aborted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 5,
+        "reason": "host-rejected"
+      }
+    ],
+    "unaccounted": [
+      {
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "first": 2,
+        "last": 4
+      }
+    ]
+  },
+  {
+    "name": "refusal-sealed-before-an-attempt-with-its-id",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "aborted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 2,
+        "reason": "host-rejected"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 3
+      }
+    ],
+    "unaccounted": []
+  },
+  {
+    "name": "a-value-at-the-top-of-the-domain",
+    "records": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 0
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "signer_seq": 9007199254740991
+      }
+    ],
+    "unaccounted": [
+      {
+        "key_id": "tool-key-2026",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "first": 1,
+        "last": 9007199254740990
+      }
+    ]
+  }
+]

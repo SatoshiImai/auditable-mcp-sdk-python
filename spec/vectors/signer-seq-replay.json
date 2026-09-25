@@ -1,0 +1,340 @@
+{
+  "keys": {
+    "tool-key-2026": {
+      "alg": "Ed25519",
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "attempt A at 0 while unavailable decides nothing",
+      "channel": "attempt",
+      "host_available": false,
+      "expect": {
+        "status": "unavailable",
+        "reason": "internal-error",
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000014",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:20.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "signer_seq": 0,
+        "signature": "RQnTE6W5FJMuV7CsNoKH5tSCNxKJZvGglmLPEJ_Cb4W4dLd5nCej9bAIHfJIDsOq09pYasMyA_n6L-QQ-CJGAQ"
+      }
+    },
+    {
+      "name": "attempt B at 1 is accepted",
+      "channel": "attempt",
+      "host_available": true,
+      "expect": {
+        "status": "accept",
+        "seq": 0,
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000015",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:21.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "signer_seq": 1,
+        "signature": "9CAcfIoaGbQXM5Y9Xh1Re4OiyIQLd4KIzmk8oVvNjWMQOxCMuK6eM4P6ceH2GJ6tLlsB8lIt7LHR9NZ2YKRHAQ"
+      }
+    },
+    {
+      "name": "A sent again byte-identical at 0, below a decided value, is accepted",
+      "channel": "attempt",
+      "host_available": true,
+      "expect": {
+        "status": "accept",
+        "seq": 1,
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000014",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:20.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "signer_seq": 0,
+        "signature": "RQnTE6W5FJMuV7CsNoKH5tSCNxKJZvGglmLPEJ_Cb4W4dLd5nCej9bAIHfJIDsOq09pYasMyA_n6L-QQ-CJGAQ"
+      }
+    },
+    {
+      "name": "B sent again byte-identical is answered from the ledger",
+      "channel": "attempt",
+      "host_available": true,
+      "expect": {
+        "status": "accept",
+        "seq": 0,
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000015",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:21.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "signer_seq": 1,
+        "signature": "9CAcfIoaGbQXM5Y9Xh1Re4OiyIQLd4KIzmk8oVvNjWMQOxCMuK6eM4P6ceH2GJ6tLlsB8lIt7LHR9NZ2YKRHAQ"
+      }
+    },
+    {
+      "name": "another attempt at the decided value 1 is a replay",
+      "channel": "attempt",
+      "host_available": true,
+      "expect": {
+        "status": "reject",
+        "reason": "replay-detected",
+        "anomalies": [
+          "replay-detected"
+        ]
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000016",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:22.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "signer_seq": 1,
+        "signature": "MT6u6HioqcpISlhrttbR6yXRdj1xCuZCbqoGK32EP9iB85iO_6OvwOAJMGMg7hZq6uSSo_l4VFFNxQJLL4KIAw"
+      }
+    },
+    {
+      "name": "the success of B at 2 is sealed",
+      "channel": "outcome",
+      "host_available": true,
+      "expect": {
+        "sealed": true,
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000015",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:21.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "signer_seq": 2,
+        "signature": "sMulC98fYjBysZgnkBDC1vfcQ9ozS6eEAr6Ncgcm1wljpp1_oeV6DjdXRbdvhhqIN7EhnJBW9A5AlmkH2_5bBQ"
+      }
+    },
+    {
+      "name": "a different outcome for B is not sealed",
+      "channel": "outcome",
+      "host_available": true,
+      "expect": {
+        "sealed": false,
+        "anomalies": [
+          "replay-detected"
+        ]
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000015",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:21.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "failed",
+        "key_id": "tool-key-2026",
+        "signer_seq": 3,
+        "signature": "vEP684UCQyL7SFxBEqNE3QClnKdOysP07klfXkOxkE6l77uCJVfyEZf3Bn7ipu3lyaRGeoGL9M9ae7y-clDsAg"
+      }
+    },
+    {
+      "name": "the success of B sent again byte-identical is ignored",
+      "channel": "outcome",
+      "host_available": true,
+      "expect": {
+        "sealed": false,
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000015",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:21.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "signer_seq": 2,
+        "signature": "sMulC98fYjBysZgnkBDC1vfcQ9ozS6eEAr6Ncgcm1wljpp1_oeV6DjdXRbdvhhqIN7EhnJBW9A5AlmkH2_5bBQ"
+      }
+    },
+    {
+      "name": "the success of A at 4 is sealed",
+      "channel": "outcome",
+      "host_available": true,
+      "expect": {
+        "sealed": true,
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000014",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:20.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "success",
+        "key_id": "tool-key-2026",
+        "signer_seq": 4,
+        "signature": "jq4Y84YVQR-P23DTR4NznqVhgPN_0MPa4XJcMBYa9lmL2q89FDYiW3xms7dul9NAl_AJVPrLxPK7CkeCTGDXBQ"
+      }
+    },
+    {
+      "name": "attempt C at 5 while unavailable decides nothing",
+      "channel": "attempt",
+      "host_available": false,
+      "expect": {
+        "status": "unavailable",
+        "reason": "internal-error",
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000017",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:23.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "signer_seq": 5,
+        "signature": "-UjW-ZwgzeE3hZQMzPfhVMg6Mm57b41DGStn-2DoP0SCFGpYvIZdx6gzSHwS9_j1kcTbsrPFoE2UuXuhexgbAA"
+      }
+    },
+    {
+      "name": "the refusal of C at 6 is sealed",
+      "channel": "outcome",
+      "host_available": true,
+      "expect": {
+        "sealed": true,
+        "anomalies": []
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000017",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:23.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "aborted",
+        "reason": "host-unavailable",
+        "key_id": "tool-key-2026",
+        "signer_seq": 6,
+        "signature": "Uwq3pt0AAc_MA79VhC3LAwu1KBotwFDCBr1yXdBbNZlZGJkWPRkMIR5868qjWkXEvZpOoYkncRBYZEnfgImmCQ"
+      }
+    },
+    {
+      "name": "C sent again byte-identical after its sealed outcome is a replay",
+      "channel": "attempt",
+      "host_available": true,
+      "expect": {
+        "status": "reject",
+        "reason": "replay-detected",
+        "anomalies": [
+          "replay-detected"
+        ]
+      },
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000017",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "2026-07-15T00:00:23.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "ledger_entries"
+        },
+        "outcome": "attempted",
+        "key_id": "tool-key-2026",
+        "signer_seq": 5,
+        "signature": "-UjW-ZwgzeE3hZQMzPfhVMg6Mm57b41DGStn-2DoP0SCFGpYvIZdx6gzSHwS9_j1kcTbsrPFoE2UuXuhexgbAA"
+      }
+    }
+  ]
+}

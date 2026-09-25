@@ -4,15 +4,18 @@ from typing import Any
 
 from auditable_mcp.hashing import GENESIS_HASH
 from auditable_mcp.ledger import Ledger, SealedRecord
+from auditable_mcp.models import SPEC_VERSION
+
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
 
 
 def _attempt(event_id: str) -> dict[str, object]:
     """Build a minimal attempt wire event."""
     return {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
-        'call_id': 'call_abc',
+        'session_id': SESSION,
         'action_type': 'db.read',
         'mutates': False,
         'egress': False,

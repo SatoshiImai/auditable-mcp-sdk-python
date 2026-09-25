@@ -5,6 +5,7 @@ exists so the persistence path can be exercised without a backend.
 """
 
 from auditable_mcp.ledger import SealedRecord
+from auditable_mcp.storage.repository import RepositoryError
 
 
 class InMemoryLedgerRepository:
@@ -16,8 +17,16 @@ class InMemoryLedgerRepository:
         # end def
 
     async def append(self, partition: str, record: SealedRecord) -> None:
-        """Append `record` to `partition` (never fails for the in-memory store)."""
-        self._by_partition.setdefault(partition, []).append(record)
+        """Append `record` to `partition` if its `seq` is the next free position.
+
+        Raises:
+            RepositoryError: `record.seq` is already taken, or skips ahead of the stored chain.
+        """
+        records = self._by_partition.setdefault(partition, [])
+        if record.seq != len(records):
+            raise RepositoryError(f'seq {record.seq} is not the next position ({len(records)}) of {partition}')
+            # end if
+        records.append(record)
         # end def
 
     async def load_tail(self, partition: str) -> SealedRecord | None:

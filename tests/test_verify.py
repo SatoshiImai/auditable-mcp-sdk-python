@@ -3,18 +3,22 @@
 import dataclasses
 from typing import Any, cast
 
+import pytest
+
 from auditable_mcp.ledger import Ledger, SealedRecord
-from auditable_mcp.models import first_sealed_validation_error, first_validation_error
+from auditable_mcp.models import SPEC_VERSION, first_sealed_validation_error, first_validation_error
 from auditable_mcp.verify import RecordAdapter, verify_chain, verify_ledger
+
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
 
 
 def _event(event_id: str, outcome: str = 'attempted', **overrides: object) -> dict[str, object]:
     """Build a wire event with an overridable outcome and fields."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
-        'call_id': 'call_abc',
+        'session_id': SESSION,
         'action_type': 'db.read',
         'mutates': False,
         'egress': False,
@@ -41,16 +45,18 @@ def _kinds(records: list[SealedRecord], anchored: str | None = None) -> set[str]
     # end def
 
 
+def _earlier(event_id: str, outcome: str = 'attempted') -> dict[str, object]:
+    """An event in the shape v0.1.1 sealed: the call named by its JSON-RPC `call_id`, no session."""
+    event = {key: value for key, value in _event(event_id, outcome).items() if key != 'session_id'}
+    return {**event, 'spec_version': 'auditable-mcp/0.1.1', 'call_id': 'call_abc'}
+    # end def
+
+
 def test_prior_version_sealed_chain_still_verifies() -> None:
     """A chain sealed under an earlier published spec_version verifies: its bytes are immutable evidence."""
     ledger = Ledger('tenant-a')
-    legacy = 'auditable-mcp/0.1.1'
-    ledger.append(
-        _event('00000000-0000-4000-8000-000000000001', 'attempted', spec_version=legacy), '2026-07-15T00:00:01.000Z'
-    )
-    ledger.append(
-        _event('00000000-0000-4000-8000-000000000001', 'success', spec_version=legacy), '2026-07-15T00:00:02.000Z'
-    )
+    ledger.append(_earlier('00000000-0000-4000-8000-000000000001'), '2026-07-15T00:00:01.000Z')
+    ledger.append(_earlier('00000000-0000-4000-8000-000000000001', 'success'), '2026-07-15T00:00:02.000Z')
     report = verify_ledger(ledger.records())
     assert report.ok
     assert report.issues == []
@@ -59,9 +65,11 @@ def test_prior_version_sealed_chain_still_verifies() -> None:
 
 def test_ingest_strict_but_verification_lenient_on_spec_version() -> None:
     """Read/write split: ingest rejects a prior spec_version; the sealed-record verifier accepts it."""
-    legacy = _event('00000000-0000-4000-8000-000000000001', spec_version='auditable-mcp/0.1.1')
+    legacy = _earlier('00000000-0000-4000-8000-000000000001')
     assert first_validation_error(legacy) is not None
     assert first_sealed_validation_error(legacy) is None
+    # A current-version event in the earlier shape is neither: v0.3 names the session, not the call.
+    assert first_sealed_validation_error({**legacy, 'spec_version': SPEC_VERSION}) is not None
     # end def
 
 
@@ -264,7 +272,11 @@ def test_sequence_gap_is_detected() -> None:
         # end for
     records = ledger.records()
     del records[1]  # drop the middle record: seqs become [0, 2]
-    assert 'seq-gap' in _kinds(records)
+    report = verify_ledger(records)
+    assert 'seq-gap' in {issue.kind for issue in report.issues}
+    # The survivor's stored link points at the record that is gone, which localizes the drop to the
+    # boundary rather than only saying the chain no longer recomputes.
+    assert any('previous_hash does not link' in issue.detail for issue in report.issues)
     # end def
 
 
@@ -363,3 +375,22 @@ def test_verify_chain_detects_a_seq_gap_on_a_non_amcp_envelope() -> None:
     del records[1]
     assert 'seq-gap' in {issue.kind for issue in verify_chain(records).issues}
     # end def
+
+
+class TestThePrincipalIsComparedAsAValue:
+    """§11.4: two conforming verifiers must not return opposite verdicts on one ledger."""
+
+    def test_a_structured_expectation_is_refused(self) -> None:
+        """§10.10 binds a single primitive; a structure compares differently in each port."""
+        with pytest.raises(ValueError, match='primitive'):
+            verify_chain([], expected_principal={'tenant': 'a'})
+            # end with
+        # end def
+
+    def test_a_primitive_expectation_is_compared(self) -> None:
+        """The form §10.10 actually binds still works, and an unbound record still mismatches."""
+        report = verify_chain([], expected_principal='tenant-a')
+        assert report.ok
+        # end def
+
+    # end class

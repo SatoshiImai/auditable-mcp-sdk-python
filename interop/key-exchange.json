@@ -1,0 +1,302 @@
+{
+  "note": "Frozen interop vectors for the SDK key-exchange form. Not part of the specification; see interop/README.md. Each port READS this file - neither renders its own answer and compares.",
+  "seeds": {
+    "ed25519_private_key_seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "host_ed25519_private_key_seed_hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+    "p256_private_scalar_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+    "note": "Recorded so the file can be reproduced, not so an implementation derives it at test time."
+  },
+  "tool_jwks": {
+    "keys": [
+      {
+        "kid": "janus:example:ed25519:2026-09-25",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "amcp_role": "tool"
+      },
+      {
+        "kid": "odin:example:p256:2026-09-25",
+        "kty": "EC",
+        "crv": "P-256",
+        "alg": "ES256",
+        "x": "UVw9brnjlrkE0_7Kf1T9zQzB6Ze_N13KUVrQpsO0A18",
+        "y": "RTa-OlDzGPv5pUdZAqIhUCvvDVfgjFOyzApW8X2fk1Q",
+        "amcp_role": "tool"
+      }
+    ]
+  },
+  "host_jwks": {
+    "keys": [
+      {
+        "kid": "odin-host:example:ed25519:2026-09-25",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "JUO5L_EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0",
+        "amcp_role": "host"
+      }
+    ]
+  },
+  "thumbprints": {
+    "janus:example:ed25519:2026-09-25": "1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y",
+    "odin:example:p256:2026-09-25": "6UoWwDCkLjV0J-pQG8c0THxbVhBcpR0AZDift1Yl5DM",
+    "odin-host:example:ed25519:2026-09-25": "WeVHjIQTOLKu-P74oC-WL-MNn_sLM5CvrzuMjDFC3-s"
+  },
+  "private_keys": [
+    {
+      "kid": "janus:example:ed25519:2026-09-25",
+      "pkcs8_base64": "MC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f",
+      "pkcs8_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f\n-----END PRIVATE KEY-----\n",
+      "public_jwk_thumbprint": "1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y"
+    }
+  ],
+  "refused_jwks": [
+    {
+      "name": "no-kid",
+      "because": "a registry entry binds a key_id (§5.1)",
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "empty-kid",
+      "because": "a key_id is non-empty (§5.1)",
+      "jwk": {
+        "kid": "",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "no-role",
+      "because": "a set that names no role can be loaded into the wrong registry (§5.2)",
+      "jwk": {
+        "kid": "k",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+      }
+    },
+    {
+      "name": "unknown-curve",
+      "because": "a new algorithm arrives with a new spec_version, not in a key file (§12.1)",
+      "jwk": {
+        "kid": "k",
+        "kty": "OKP",
+        "crv": "Ed448",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "short-ed25519-x",
+      "because": "an Ed25519 x is 32 bytes (RFC 8037)",
+      "jwk": {
+        "kid": "k",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBI",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "ed25519-x-padded",
+      "because": "JWK key material is base64url without padding (RFC 7517, RFC 7515 sec. 2)",
+      "jwk": {
+        "kid": "k",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "alg-contradicts-the-key",
+      "because": "an `alg` present on a JWK names the algorithm the key is (RFC 7517)",
+      "jwk": {
+        "kid": "k",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "ES256",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "ed25519-x-not-base64url",
+      "because": "JWK key material is base64url (RFC 7517)",
+      "jwk": {
+        "kid": "k",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "not base64url!!",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "short-p256-x",
+      "because": "a P-256 coordinate is 32 bytes (RFC 7518)",
+      "jwk": {
+        "kid": "k",
+        "kty": "EC",
+        "crv": "P-256",
+        "alg": "ES256",
+        "x": "UVw9brnjlrkE0_7Kf1T9zQzB6Ze_N13KUVrQpsM",
+        "y": "RTa-OlDzGPv5pUdZAqIhUCvvDVfgjFOyzApW8X2fk1Q",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "p256-missing-y",
+      "because": "a P-256 key carries both coordinates (RFC 7518)",
+      "jwk": {
+        "kid": "k",
+        "kty": "EC",
+        "crv": "P-256",
+        "alg": "ES256",
+        "x": "UVw9brnjlrkE0_7Kf1T9zQzB6Ze_N13KUVrQpsO0A18",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "p256-off-curve",
+      "because": "two coordinates of the right length are not yet a key (RFC 7518)",
+      "jwk": {
+        "kid": "k",
+        "kty": "EC",
+        "crv": "P-256",
+        "alg": "ES256",
+        "x": "UVw9brnjlrkE0_7Kf1T9zQzB6Ze_N13KUVrQpsO0A18",
+        "y": "UVw9brnjlrkE0_7Kf1T9zQzB6Ze_N13KUVrQpsO0A18",
+        "amcp_role": "tool"
+      }
+    },
+    {
+      "name": "carries-private-d",
+      "because": "a registry is provisioned with public keys only; `d` is the private half",
+      "jwk": {
+        "kid": "k",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "Ed25519",
+        "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "amcp_role": "tool",
+        "d": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+      }
+    }
+  ],
+  "refused_jwks_sets": [
+    {
+      "name": "not-a-set",
+      "because": "a JWK Set carries its keys under `keys` (RFC 7517)",
+      "jwks": {
+        "kty": "OKP"
+      }
+    },
+    {
+      "name": "non-object-member",
+      "because": "every member of `keys` is a JWK object; skipping one would load a set that is not what it claims",
+      "jwks": {
+        "keys": [
+          "not a key",
+          {
+            "kid": "k",
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "alg": "Ed25519",
+            "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+            "amcp_role": "tool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "kid-bound-twice",
+      "because": "one key_id binds exactly one key (§10.9)",
+      "jwks": {
+        "keys": [
+          {
+            "kid": "k",
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "alg": "Ed25519",
+            "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+            "amcp_role": "tool"
+          },
+          {
+            "kid": "dup",
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "alg": "Ed25519",
+            "x": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc",
+            "amcp_role": "tool"
+          },
+          {
+            "kid": "dup",
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "alg": "Ed25519",
+            "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+            "amcp_role": "tool"
+          }
+        ]
+      }
+    }
+  ],
+  "refused_thumbprints": [
+    {
+      "name": "okp-missing-x",
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519"
+      }
+    },
+    {
+      "name": "ec-missing-y",
+      "jwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "UVw9brnjlrkE0_7Kf1T9zQzB6Ze_N13KUVrQpsO0A18"
+      }
+    }
+  ],
+  "role_mismatch": {
+    "because": "a tool key held as a host’s lets a tool sign itself into the countersigned state (§5.2)",
+    "load_into_role": "host",
+    "jwks": {
+      "keys": [
+        {
+          "kid": "janus:example:ed25519:2026-09-25",
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "alg": "Ed25519",
+          "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+          "amcp_role": "tool"
+        },
+        {
+          "kid": "odin:example:p256:2026-09-25",
+          "kty": "EC",
+          "crv": "P-256",
+          "alg": "ES256",
+          "x": "UVw9brnjlrkE0_7Kf1T9zQzB6Ze_N13KUVrQpsO0A18",
+          "y": "RTa-OlDzGPv5pUdZAqIhUCvvDVfgjFOyzApW8X2fk1Q",
+          "amcp_role": "tool"
+        }
+      ]
+    }
+  }
+}

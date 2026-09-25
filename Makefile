@@ -1,4 +1,4 @@
-PYTHON_VER			:= 3.14.6
+PYTHON_VER			:= 3.14.7
 VENV				:= $(PYTHON_VER)-amcp
 ACTIVATE			:= . ~/.pyenv/versions/$(VENV)/bin/activate
 
@@ -8,9 +8,9 @@ ACTIVATE			:= . ~/.pyenv/versions/$(VENV)/bin/activate
 help:
 	@echo 'auditable-mcp-sdk (Python) — development commands'
 	@echo ''
-	@echo '  make env/init      Create the pyenv virtualenv ($(VENV)) and install the project + dev deps'
+	@echo '  make env/init      Create the pyenv virtualenv ($(VENV)) and install the project + extras + dev deps'
 	@echo '  make env/destroy   Remove the pyenv virtualenv'
-	@echo '  make env/sync      Reinstall the project + dev deps into the virtualenv'
+	@echo '  make env/sync      Reinstall the project + extras + dev deps into the virtualenv'
 	@echo '  make env/freeze    Show installed packages'
 	@echo ''
 	@echo '  make test          Run the test suite (unit + conformance vectors)'
@@ -43,11 +43,15 @@ env/init:
 env/destroy:
 	(pyenv uninstall -f $(VENV))
 
+# Both optional extras are installed, not just the dev group. `aws` and `mcp` each have a test module
+# and a walk behind them, and an extra the environment does not carry is an extra nothing runs against:
+# the MCP binding was written for `mcp>=2.2` and validated for weeks on a 1.x that happened to be
+# present, because this target installed neither.
 env/sync:
 	( \
 		$(ACTIVATE) && \
 		python -m pip install --upgrade pip uv && \
-		uv pip install -e . --group dev 2>&1 \
+		uv pip install -e '.[aws,mcp]' --group dev 2>&1 \
 	)
 
 env/freeze:
@@ -106,3 +110,9 @@ clean:
 
 __require_target__:
 	@[ -n "$(TARGET)" ] || (echo "[ERROR] Parameter [TARGET] is required" 1>&2 && echo "(e.g) make test/target TARGET=tests/test_models.py" 1>&2 && exit 1)
+
+walk: ## drive the SDK over a real stdio pipe, including the TypeScript tool
+	python walk/run.py $(CASE)
+
+walk/http: ## the same walk over Streamable HTTP, including two instances behind a router (§6.4 round affinity)
+	WALK_TRANSPORT=http python walk/run.py $(CASE)

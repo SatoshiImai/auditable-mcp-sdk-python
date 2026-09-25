@@ -4,9 +4,9 @@
     "channel": "attempt",
     "event": {
       "id": "00000000-0000-4000-8000-000000000006",
-      "spec_version": "auditable-mcp/0.2",
+      "spec_version": "auditable-mcp/0.3",
       "ts": "2026-07-15T00:00:06.000Z",
-      "call_id": "call_abc",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.write",
       "mutates": true,
       "egress": false,
@@ -30,9 +30,9 @@
     "channel": "attempt",
     "event": {
       "id": "00000000-0000-4000-8000-000000000006",
-      "spec_version": "auditable-mcp/0.2",
+      "spec_version": "auditable-mcp/0.3",
       "ts": "2026-07-15T00:00:06.000Z",
-      "call_id": "call_abc",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.write",
       "mutates": true,
       "egress": false,
@@ -53,9 +53,9 @@
     "channel": "attempt",
     "event": {
       "id": "00000000-0000-4000-8000-000000000006",
-      "spec_version": "auditable-mcp/0.2",
+      "spec_version": "auditable-mcp/0.3",
       "ts": "2026-07-15T00:00:06.000Z",
-      "call_id": "call_abc",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.write",
       "mutates": true,
       "egress": false,
@@ -72,13 +72,133 @@
     }
   },
   {
+    "name": "uppercase-uuid-id",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-00000000000A",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
+    "name": "nil-session-id",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "session_id": "00000000-0000-0000-0000-000000000000",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
+    "name": "partial-level-2-fields",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "key_id": "tool-key-2026",
+      "signer_seq": 0
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
+    "name": "lone-surrogate-string",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "action_context": {
+        "note": "a\ud800b"
+      }
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
+    "name": "trailing-newline-id",
+    "channel": "attempt",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006\n",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "expect": {
+      "status": "reject",
+      "reason": "schema-invalid"
+    }
+  },
+  {
     "name": "aborted-missing-reason",
     "channel": "outcome",
     "event": {
       "id": "00000000-0000-4000-8000-000000000006",
-      "spec_version": "auditable-mcp/0.2",
+      "spec_version": "auditable-mcp/0.3",
       "ts": "2026-07-15T00:00:06.000Z",
-      "call_id": "call_abc",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.write",
       "mutates": true,
       "egress": false,
@@ -91,6 +211,29 @@
     "expect": {
       "sealed": false,
       "anomaly_kind": "schema-invalid"
+    }
+  },
+  {
+    "name": "outcome-for-another-session",
+    "channel": "outcome",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc1",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "success",
+      "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "expect": {
+      "sealed": false,
+      "anomaly_kind": "replay-detected"
     }
   }
 ]

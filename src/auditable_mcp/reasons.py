@@ -24,17 +24,22 @@ INTERNAL_ERROR: Final = 'internal-error'
 HASH_MISMATCH: Final = 'hash-mismatch'
 HOST_REJECTED: Final = 'host-rejected'
 HOST_UNAVAILABLE: Final = 'host-unavailable'
+HOST_UNCOUNTERSIGNED: Final = 'host-uncountersigned'
+# Reused below as an anomaly kind: a tool aborts on it at runtime, a verifier reports it from a ledger.
+HOST_SIGNATURE_INVALID: Final = 'host-signature-invalid'
 
 # Ledger anomaly kinds a verifier reports (§7.6). SCHEMA_INVALID / SIGNATURE_INVALID above are reused
 # here (a distinct code space, disambiguated by the anomaly `kind` field).
 RECORD_HASH_MISMATCH: Final = 'record-hash-mismatch'
 DIGEST_MISMATCH: Final = 'digest-mismatch'
-# SDK-specific: defined by neither a-MCP §7.6 nor SEP-3004. SEP-3004 binds `principal_id` in its
-# hashed core and detects tampering of it (§2.6 event_hash recompute), but never compares that identity
-# against the principal a partition is expected to hold; a-MCP delegates identity to the envelope
-# entirely. This kind flags that comparison - the detection half neither spec defines.
+# a-MCP §10.10 requires a deployment with several principals in one store to bind identity and the
+# verifier to check it; SEP-3004 binds `principal_id` in its hashed core and detects tampering of it
+# (§2.6 event_hash recompute) but never compares that identity against the principal a partition is
+# expected to hold. This kind flags that comparison - the detection half SEP-3004 does not define.
 PRINCIPAL_MISMATCH: Final = 'principal-mismatch'
 SEQ_GAP: Final = 'seq-gap'
 SIGNER_SEQ_GAP: Final = 'signer-seq-gap'
 ORPHANED_OUTCOME: Final = 'orphaned-outcome'
+# Recorded by the host, which observes a call's end; a verifier reading a ledger cannot produce it (§6.3).
+UNRESOLVED_ATTEMPT: Final = 'unresolved-attempt'
 UNREPORTED_EGRESS: Final = 'unreported-egress'

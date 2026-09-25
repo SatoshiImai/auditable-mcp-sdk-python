@@ -6,10 +6,10 @@ build-backend = "hatchling.build"
 # itself. The import package stays `auditable_mcp`.
 [project]
 name = "auditable-mcp-sdk"
-version = "0.2.1"
-description = "Auditable MCP SDK — a protocol machine for tool self-attestation into a tamper-evident host ledger (auditable-mcp/0.1.1)."
+version = "0.3.0"
+description = "Auditable MCP SDK — a protocol machine for tool self-attestation into a tamper-evident host ledger (auditable-mcp/0.3)."
 readme = "README.md"
-# Developed and pinned on 3.14.6 (see .python-version); the published floor is kept lower for OSS reach.
+# Developed and pinned on 3.14.7 (see .python-version); the published floor is kept lower for OSS reach.
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Satoshi Imai" }]
@@ -24,18 +24,24 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # §7.1 makes atomic sealing a host conformance requirement, so the protocol machine needs a
+    # mutual-exclusion primitive. anyio supplies one without binding this SDK to a single async
+    # framework, the way asyncio.Lock would.
+    "anyio>=4",
     "pydantic>=2.7",
     "rfc8785>=0.1.4",
     "cryptography>=42",
 ]
 
-# The core is a pure protocol machine with no transport dependency. There is no bundled MCP binding:
-# the MCP SDK has no lifecycle hook for receiving custom methods (its receive loop rejects any method
-# outside its fixed request union), so an integrator wires the `AuditTransport` seam over MCP directly,
-# importing the official `mcp` package alongside this one. The KMS adapter takes an injected client and
-# never imports boto3, so `[aws]` only provides the client for users who want it.
+# The core is a pure protocol machine with no transport dependency; both extras are opt-in, and
+# nothing outside `auditable_mcp.mcp` imports the MCP package. The KMS adapter takes an injected
+# client and never imports boto3, so `[aws]` only provides the client for users who want it.
 [project.optional-dependencies]
 aws = ["boto3>=1.34"]
+# Capped at the minor it is tested on: the MCP binding imports the official SDK's context-carrying
+# streams and stream protocols from private modules (`mcp.shared._context_streams`,
+# `mcp.shared._stream_protocols`), which a minor release may move.
+mcp = ["mcp>=2.2,<2.3"]
 
 [dependency-groups]
 dev = [
