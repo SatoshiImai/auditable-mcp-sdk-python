@@ -1,0 +1,460 @@
+{
+  "keys": {
+    "host-key-2026": {
+      "alg": "Ed25519",
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q"
+      }
+    },
+    "other-host-key-2026": {
+      "alg": "Ed25519",
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY_k2NsFGFKyHN9E"
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "countersigned-under-the-expected-identity",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "host_signature": "d3RuehLVx6u1xbB6zvsb2vj5bM9rlvR01pgoyqy_DBmhbDhK1JpDBzH1o_Tv4Kbos6Zi5CZe-53-YeXdmqtpDQ",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        },
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "success"
+          },
+          "seq": 1,
+          "host_ts": "2026-07-15T00:00:31.000Z",
+          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec",
+          "host_signature": "Gw38ID8zJRvMBbrTxJIZ0nXcrvItr3GBBBfCDOQJGTt6urvBr7wt2D3562lBRbDrUtmf9LnjaLTutinuMSV3Bw",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        }
+      ],
+      "options": {
+        "countersignature_required": true,
+        "expected_identity": {
+          "log_id": "acme#2026-07-15",
+          "host_key_ids": [
+            "host-key-2026"
+          ]
+        }
+      },
+      "expect_kinds": []
+    },
+    {
+      "name": "stripped-countersignature-where-one-is-required",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "host_signature": "d3RuehLVx6u1xbB6zvsb2vj5bM9rlvR01pgoyqy_DBmhbDhK1JpDBzH1o_Tv4Kbos6Zi5CZe-53-YeXdmqtpDQ",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        },
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "success"
+          },
+          "seq": 1,
+          "host_ts": "2026-07-15T00:00:31.000Z",
+          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec"
+        }
+      ],
+      "options": {
+        "countersignature_required": true
+      },
+      "expect_kinds": [
+        "host-signature-invalid"
+      ]
+    },
+    {
+      "name": "uncountersigned-record-where-none-is-required",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "host_signature": "d3RuehLVx6u1xbB6zvsb2vj5bM9rlvR01pgoyqy_DBmhbDhK1JpDBzH1o_Tv4Kbos6Zi5CZe-53-YeXdmqtpDQ",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        },
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "success"
+          },
+          "seq": 1,
+          "host_ts": "2026-07-15T00:00:31.000Z",
+          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec"
+        }
+      ],
+      "options": {},
+      "expect_kinds": []
+    },
+    {
+      "name": "another-host-under-the-same-log-id",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "host_signature": "b2RiisMXma-lC6_OtW3QUpUl_nFpM2xGX5v-FMS2VHwTu66BHW_klfYp856oosSXgoadDgqhzeOdTnxl_VaJCQ",
+          "host_key_id": "other-host-key-2026",
+          "log_id": "acme#2026-07-15"
+        },
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "success"
+          },
+          "seq": 1,
+          "host_ts": "2026-07-15T00:00:31.000Z",
+          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec",
+          "host_signature": "KrciLii4pT--I1grg0u0-BOuCHo0o0OmtufzCbGXZiDjaHLrQB1y2wd9Qd46sNcgW9qZ_aiUk0yTbOsM6nYDAA",
+          "host_key_id": "other-host-key-2026",
+          "log_id": "acme#2026-07-15"
+        }
+      ],
+      "options": {
+        "expected_identity": {
+          "log_id": "acme#2026-07-15",
+          "host_key_ids": [
+            "host-key-2026"
+          ]
+        }
+      },
+      "expect_kinds": [
+        "principal-mismatch",
+        "principal-mismatch"
+      ]
+    },
+    {
+      "name": "uncountersigned-where-identity-is-bound",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73"
+        },
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001e",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "success"
+          },
+          "seq": 1,
+          "host_ts": "2026-07-15T00:00:31.000Z",
+          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
+          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec"
+        }
+      ],
+      "options": {
+        "expected_identity": {
+          "log_id": "acme#2026-07-15",
+          "host_key_ids": [
+            "host-key-2026"
+          ]
+        }
+      },
+      "expect_kinds": [
+        "principal-mismatch",
+        "principal-mismatch"
+      ]
+    },
+    {
+      "name": "outcome-sealed-before-its-attempt",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001f",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "success"
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "90a78c7c958e152f856445ef0085b96f7628592f7c078515238360c89cbbba69",
+          "host_signature": "hE3sTeAy1MA6BdoFaT2TM-1GfLJrok5yg6fVhPES_RDAhGL9FctieDNGCeHYn1qiiSD3U_9sbU9C6gtorP9iDQ",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        },
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-00000000001f",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 1,
+          "host_ts": "2026-07-15T00:00:31.000Z",
+          "previous_hash": "90a78c7c958e152f856445ef0085b96f7628592f7c078515238360c89cbbba69",
+          "record_hash": "3e41e4a0a18aa03eef5873bc5c21c6ac1ae43d91db4d1f91a80c3ff43976d8eb",
+          "host_signature": "NdzQhqR6Fvo6tjJrXfc4qrlCAhzUrryRrCDD460CegD4MQ-pCrB_tA84fzprIryTFQ1GBbEUmR1oq3RjQeJ7Cg",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        }
+      ],
+      "options": {},
+      "expect_kinds": [
+        "orphaned-outcome"
+      ]
+    },
+    {
+      "name": "earlier-version-sealed-after-a-later-one",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-000000000020",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "e6197e296aa2ab17f64b74b378aab37f17ef96567353e510ebe079ac0f801af2",
+          "host_signature": "9B9u1uOS6ulkYU5nbmd5r9f9pn0tSvxRNoYUHHUnbNZRsi2HZKhiRI1ysHZKRcRvqHXKoWt7XdGnO37XRCviAA",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        },
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-000000000021",
+            "spec_version": "auditable-mcp/0.2",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "call_id": "7",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted"
+          },
+          "seq": 1,
+          "host_ts": "2026-07-15T00:00:31.000Z",
+          "previous_hash": "e6197e296aa2ab17f64b74b378aab37f17ef96567353e510ebe079ac0f801af2",
+          "record_hash": "4e3312a2d45a1897db2b350a6971aa9d7394356b56c65e5235656aed6fc874de",
+          "host_signature": "5uEb6KuxQo-BXctd3tjJEbS5iiDa4s8CQqwkLoBFEQffgs22CQtGyMuIX0Pm_zKsOcv-P4fWBgN-dM64phQ9Cg",
+          "host_key_id": "host-key-2026",
+          "log_id": "acme#2026-07-15"
+        }
+      ],
+      "options": {},
+      "expect_kinds": [
+        "schema-invalid"
+      ]
+    },
+    {
+      "name": "identity-of-a-record-that-cannot-be-canonicalized",
+      "records": [
+        {
+          "event": {
+            "id": "00000000-0000-4000-8000-000000000022",
+            "spec_version": "auditable-mcp/0.3",
+            "ts": "2026-07-15T00:00:30.000Z",
+            "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+            "action_type": "db.write",
+            "mutates": true,
+            "egress": false,
+            "target_resource": {
+              "kind": "table",
+              "ref": "customers"
+            },
+            "outcome": "attempted",
+            "action_context": {
+              "note": "a\ud800b"
+            }
+          },
+          "seq": 0,
+          "host_ts": "2026-07-15T00:00:30.000Z",
+          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "host_signature": "sY8vFhDdzwkNE5sPKOV4-nc-J_oVa93xRtP5x-vbV7yJRCkgFNjeHJWk9IxvhLZ9urpbhwEGnEBgZ17GKjXnAw",
+          "host_key_id": "other-host-key-2026",
+          "log_id": "acme#2026-07-15"
+        }
+      ],
+      "options": {
+        "expected_identity": {
+          "log_id": "acme#2026-07-15",
+          "host_key_ids": [
+            "host-key-2026"
+          ]
+        }
+      },
+      "expect_kinds": [
+        "principal-mismatch",
+        "schema-invalid"
+      ]
+    }
+  ]
+}

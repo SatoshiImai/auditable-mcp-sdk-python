@@ -15,12 +15,20 @@
     "attempt": {
       "type": "string",
       "const": "request"
+    },
+    "countersign": {
+      "type": "string",
+      "enum": [
+        "none",
+        "host"
+      ]
     }
   },
   "required": [
     "spec_version",
     "level",
-    "attempt"
+    "attempt",
+    "countersign"
   ],
   "additionalProperties": false
 }

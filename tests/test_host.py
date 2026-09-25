@@ -8,12 +8,15 @@ from auditable_mcp.models import (
     SPEC_VERSION,
     AcceptResponse,
     AuditCapability,
+    Countersign,
     Level,
     RejectResponse,
     UnavailableResponse,
 )
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.verify import verify_ledger
+
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
 
 
 class _Clock:
@@ -54,15 +57,11 @@ class _FixedDeps:
 class _StubSigner:
     """Stamps monotonic L2 fields so an L2 session can drive the host."""
 
-    def __init__(self) -> None:
-        """Start the sequence at zero."""
-        self._seq = 0
-        # end def
+    key_id = 'k1'
 
-    async def sign(self, event: dict[str, object]) -> dict[str, object]:
-        """Add key_id, a monotonic sequence, and a placeholder signature."""
-        self._seq += 1
-        return {**event, 'key_id': 'k1', 'signer_seq': self._seq, 'signature': 'stub'}
+    async def sign(self, event: dict[str, object], signer_seq: int) -> dict[str, object]:
+        """Add key_id, the number the session's section holds, and a placeholder signature."""
+        return {**event, 'key_id': self.key_id, 'signer_seq': signer_seq, 'signature': 'stub'}
         # end def
 
 
@@ -72,6 +71,20 @@ class _OkVerifier:
     async def verify(self, event: dict[str, object]) -> str | None:
         """Always verify."""
         return None
+        # end def
+
+
+class _SwitchableVerifier:
+    """Accepts until told the signatures are forged."""
+
+    def __init__(self) -> None:
+        """Start accepting."""
+        self.forged = False
+        # end def
+
+    async def verify(self, event: dict[str, object]) -> str | None:
+        """Reject as forged once switched."""
+        return 'signature-invalid' if self.forged else None
         # end def
 
 
@@ -88,9 +101,9 @@ def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
-        'call_id': 'call_abc',
+        'session_id': SESSION,
         'action_type': 'db.read',
         'mutates': False,
         'egress': False,
@@ -109,8 +122,10 @@ def _signed(event: dict[str, object], sequence: int) -> dict[str, object]:
 
 
 def _l1_host() -> AuditHost:
-    """Build an L1 host with a deterministic clock."""
-    return AuditHost('tenant-a', clock=_Clock())
+    """Build an L1 host with a deterministic clock and the test's audit session open."""
+    host = AuditHost('tenant-a', clock=_Clock())
+    host.open_session(SESSION)
+    return host
     # end def
 
 
@@ -155,26 +170,83 @@ async def test_non_canonicalizable_number_is_rejected() -> None:
     # end def
 
 
-async def test_duplicate_attempt_id_is_rejected_as_replay() -> None:
-    """A second attempt with an already-accepted id is a replay."""
+async def test_a_byte_identical_repeat_is_answered_from_the_ledger() -> None:
+    """§7.1: the same attempt sent again gets the original accept, and nothing is sealed twice."""
     host = _l1_host()
     event = _attempt('00000000-0000-4000-8000-000000000001')
-    await host.handle_attempt(event)
-    response = await host.handle_attempt(event)
+    first = await host.handle_attempt(event)
+    assert await host.handle_attempt(dict(event)) == first
+    assert len(host.records()) == 1
+    assert host.anomalies() == []
+    # end def
+
+
+async def test_an_id_repeated_with_different_bytes_is_a_replay() -> None:
+    """§7.1: the host cannot tell a changed event under a sealed id from a replay, and rejects it."""
+    host = _l1_host()
+    await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001'))
+    response = await host.handle_attempt(
+        _attempt('00000000-0000-4000-8000-000000000001', target_resource={'kind': 'table', 'ref': 'salaries'})
+    )
     assert isinstance(response, RejectResponse)
     assert response.reason == 'replay-detected'
     assert len(host.records()) == 1
     # end def
 
 
+async def test_an_event_outside_the_calls_session_is_rejected() -> None:
+    """§6.3: a session the host did not issue, or not the one the call carries, is a replay."""
+    host = _l1_host()
+    other = '0198f3a2-5c1e-7000-8000-00000000ffff'
+    response = await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001', session_id=other))
+    assert isinstance(response, RejectResponse)
+    assert response.reason == 'replay-detected'
+    host.open_session(other)
+    response = await host.handle_attempt(
+        _attempt('00000000-0000-4000-8000-000000000001', session_id=other), session_id=SESSION
+    )
+    assert isinstance(response, RejectResponse)
+    assert host.records() == []
+    # end def
+
+
+async def test_a_closed_session_accepts_nothing() -> None:
+    """§6.3: the call ended, so an event for it arrives too late to be sealed."""
+    host = _l1_host()
+    await host.close_session(SESSION)
+    response = await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001'))
+    assert isinstance(response, RejectResponse)
+    assert host.records() == []
+    # end def
+
+
+async def test_an_accepted_attempt_left_unresolved_is_recorded_when_the_call_ends() -> None:
+    """§6.3: the host observes the call's end, so a trailing outcome's loss is visible to it."""
+    host = _l1_host()
+    await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001'))
+    await host.close_session(SESSION)
+    assert [anomaly.kind for anomaly in host.anomalies()] == ['unresolved-attempt']
+    # end def
+
+
+async def test_a_session_is_issued_once() -> None:
+    """§6.3: a session id the host issued before would let one call's events stand for another's."""
+    host = _l1_host()
+    with pytest.raises(ValueError):
+        host.open_session(SESSION)
+        # end with
+    # end def
+
+
 async def test_persistence_failure_fails_closed() -> None:
-    """A persistence failure yields a retryable unavailable, sealing nothing."""
+    """A persistence failure yields unavailable, sealing nothing; the identical attempt may come again."""
     host = _l1_host()
     host.persistence_available = False
     response = await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001'))
     assert isinstance(response, UnavailableResponse)
-    assert response.retryable is True
     assert len(host.records()) == 0
+    host.persistence_available = True
+    assert isinstance(await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001')), AcceptResponse)
     # end def
 
 
@@ -205,26 +277,30 @@ async def test_success_outcome_without_attempt_is_flagged() -> None:
     """A success referencing no accepted attempt is an anomaly and is not sealed (§7.2)."""
     host = _l1_host()
     await host.handle_outcome(_attempt('00000000-0000-4000-8000-0000000000ff', outcome='success'))
-    assert any(a.kind == 'orphaned-outcome' for a in host.anomalies())
+    orphan = next(a for a in host.anomalies() if a.kind == 'orphaned-outcome')
+    assert 'without an accepted attempt' in orphan.detail
     assert len(host.records()) == 0
     # end def
 
 
-async def test_aborted_outcome_without_attempt_is_not_an_anomaly() -> None:
-    """A fail-closed aborted outcome for a never-accepted attempt is honest, not tampering (§10.4)."""
+async def test_aborted_outcome_without_attempt_is_sealed_as_a_refusal() -> None:
+    """§7.2, §10.4: an aborted outcome for a never-accepted attempt is a record, not an anomaly."""
     host = _l1_host()
     await host.handle_outcome(
         _attempt('00000000-0000-4000-8000-0000000000ff', outcome='aborted', reason='host-rejected')
     )
     assert host.anomalies() == []
-    assert len(host.records()) == 0
+    assert [record.event['outcome'] for record in host.records()] == ['aborted']
     # end def
 
 
 def test_l2_host_requires_a_verifier() -> None:
     """Constructing an L2 host without a verifier fails fast."""
     with pytest.raises(ValueError):
-        AuditHost('tenant-a', AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'))
+        AuditHost(
+            'tenant-a',
+            AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', countersign=Countersign.NONE),
+        )
         # end with
     # end def
 
@@ -238,13 +314,15 @@ def test_host_accepts_a_partial_capability_and_stamps_its_own_version() -> None:
 
 
 def _l2_host(verifier: object) -> AuditHost:
-    """Build an L2 host with the given verifier."""
-    return AuditHost(
+    """Build an L2 host with the given verifier and the test's audit session open."""
+    host = AuditHost(
         'tenant-a',
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
-        verifier=verifier,
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', countersign=Countersign.NONE),
+        verifier=verifier,  # type: ignore[arg-type]
         clock=_Clock(),
-    )  # type: ignore[arg-type]
+    )
+    host.open_session(SESSION)
+    return host
 
 
 async def test_l2_unsigned_attempt_is_rejected() -> None:
@@ -291,14 +369,15 @@ async def test_outcome_after_reject_is_flagged() -> None:
     event_id = '00000000-0000-4000-8000-000000000001'
     await host.handle_attempt(_attempt(event_id))  # unsigned under L2 -> rejected, id remembered
     await host.handle_outcome(_signed(_attempt(event_id, outcome='success'), 0))
-    assert any(a.kind == 'orphaned-outcome' for a in host.anomalies())
+    orphan = next(a for a in host.anomalies() if a.kind == 'orphaned-outcome')
+    assert 'rejected id' in orphan.detail
     # end def
 
 
 async def test_session_over_real_host_produces_a_verifiable_chain() -> None:
     """An L1 session wired to a real host seals a clean, anomaly-free, verifiable chain."""
     host = _l1_host()
-    session = AmcpSession(InProcessTransport(host), 'call_1', deps=_FixedDeps())
+    session = AmcpSession(InProcessTransport(host), host.open_session(), deps=_FixedDeps())
     async with session.action('db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False):
         pass
         # end with
@@ -311,14 +390,62 @@ async def test_session_over_real_host_produces_a_verifiable_chain() -> None:
 async def test_l2_session_over_real_host_tracks_sequence() -> None:
     """An L2 session (stub signer + verifier) seals a verifiable chain and advances the key sequence."""
     host = _l2_host(_OkVerifier())
-    session = AmcpSession(InProcessTransport(host), 'call_1', deps=_FixedDeps(), signer=_StubSigner())
+    session = AmcpSession(InProcessTransport(host), host.open_session(), deps=_FixedDeps(), signer=_StubSigner())
     async with session.action('db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False):
         pass
         # end with
     records = host.records()
     assert [r.event['outcome'] for r in records] == ['attempted', 'success']
-    assert records[0].event['signer_seq'] == 1
-    assert records[1].event['signer_seq'] == 2
+    assert records[0].event['signer_seq'] == 0
+    assert records[1].event['signer_seq'] == 1
     assert host.anomalies() == []
     assert verify_ledger(records, host.digest()).ok
+    # end def
+
+
+_L2 = AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', countersign=Countersign.NONE)
+
+
+class TestAnOutcomeThatFailsLevel2Validation:
+    """§6, §8.3: an outcome is validated like an attempt, and a failure is dropped and flagged."""
+
+    @pytest.mark.asyncio
+    async def test_a_forged_outcome_is_not_sealed_and_is_flagged(self) -> None:
+        """§6: the host cannot reject a notification, so the anomaly set is where the failure goes."""
+        verifier = _SwitchableVerifier()
+        host = _l2_host(verifier)
+        attempt = _signed(_attempt('00000000-0000-4000-8000-000000000001'), 0)
+        await host.handle_attempt(attempt)
+        verifier.forged = True
+        before = len(host.records())
+        await host.handle_outcome(_signed({**attempt, 'outcome': 'success'}, 1))
+        assert len(host.records()) == before, 'a forged outcome was sealed'
+        assert [anomaly.kind for anomaly in host.anomalies()] == ['signature-invalid']
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_replayed_outcome_sequence_is_not_sealed_and_is_flagged(self) -> None:
+        """§7.4: a signer_seq at or below the last accepted is a replay, on either channel."""
+        host = _l2_host(_OkVerifier())
+        attempt = _signed(_attempt('00000000-0000-4000-8000-000000000001'), 0)
+        await host.handle_attempt(attempt)
+        before = len(host.records())
+        await host.handle_outcome(_signed({**attempt, 'outcome': 'success'}, 0))
+        assert len(host.records()) == before, 'a replayed outcome was sealed'
+        assert 'replay-detected' in [anomaly.kind for anomaly in host.anomalies()]
+        # end def
+
+    # end class
+
+
+@pytest.mark.asyncio
+async def test_an_outcome_with_an_uncanonicalizable_number_is_dropped_and_flagged() -> None:
+    """§8.1 applies on both channels, and §6 leaves the anomaly set as the only place to say so."""
+    host = _l1_host()
+    attempt = _attempt('00000000-0000-4000-8000-000000000001')
+    await host.handle_attempt(attempt)
+    before = len(host.records())
+    await host.handle_outcome({**attempt, 'outcome': 'success', 'action_context': {'rows': 2**53}})
+    assert len(host.records()) == before, 'an uncanonicalizable outcome was sealed'
+    assert 'schema-invalid' in [anomaly.kind for anomaly in host.anomalies()]
     # end def

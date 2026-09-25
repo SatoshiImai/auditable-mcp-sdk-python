@@ -1,8 +1,9 @@
 """An in-process transport: the tool and host share a process, no wire.
 
 This forwards `AuditTransport` calls straight to an `AuditEndpoint`. It is the transport used for
-tests and for embedding the audit host in the same process as the tool. A wire transport over MCP is
-wired by the integrator against the same `AuditTransport` seam.
+tests and for embedding the audit host in the same process as the tool. The host issues the audit
+session (§6.3): open one with `async with host.session() as session_id:` for the span of the call, and
+give the id to `AmcpSession`. A wire transport over MCP is wired against the same `AuditTransport` seam.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ class InProcessTransport:
         # end def
 
     def negotiate(self, offered: AuditCapability) -> NegotiationResult:
-        """Compute the fit of the tool's offer against the endpoint's required capability (§6.1)."""
+        """Compute the fit against the embedded endpoint's declaration; it is never undeclared (§6.1)."""
         return negotiate(self._endpoint.capability, offered)
         # end def
 
