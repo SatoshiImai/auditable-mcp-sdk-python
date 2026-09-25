@@ -48,6 +48,13 @@ def chain_signed_vector() -> dict[str, Any]:
 
 
 @pytest.fixture
+def chain_countersigned_vector() -> dict[str, Any]:
+    """The golden countersigned chain: the same records as chain.json plus the countersignature (§8.4)."""
+    return _load(_VECTORS_DIR / 'chain-countersigned.json')
+    # end def
+
+
+@pytest.fixture
 def error_cases() -> list[dict[str, Any]]:
     """Golden events a host MUST reject (attempt) or drop and flag (outcome), with the Tier-1 code."""
     return _load(_VECTORS_DIR / 'error-cases.json')

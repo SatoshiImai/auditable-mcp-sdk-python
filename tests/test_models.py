@@ -4,6 +4,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from auditable_mcp.models import (
+    SPEC_VERSION,
     AcceptResponse,
     AttemptResponse,
     AuditEvent,
@@ -13,6 +14,8 @@ from auditable_mcp.models import (
     UnavailableResponse,
 )
 
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
+
 _ADAPTER: TypeAdapter[object] = TypeAdapter(AttemptResponse)
 
 
@@ -20,9 +23,9 @@ def _minimal_event() -> AuditEvent:
     """Build a minimal valid attempt event."""
     return AuditEvent(
         id='00000000-0000-4000-8000-000000000001',
-        spec_version='auditable-mcp/0.2',
+        spec_version=SPEC_VERSION,
         ts='2026-07-15T00:00:01.000Z',
-        call_id='call_abc',
+        session_id=SESSION,
         action_type='db.read',
         mutates=False,
         egress=False,
@@ -38,7 +41,7 @@ def test_to_wire_omits_absent_optionals() -> None:
     assert 'reason' not in wire
     assert 'signature' not in wire
     assert 'scope_hint' not in wire['target_resource']
-    assert wire['spec_version'] == 'auditable-mcp/0.2'
+    assert wire['spec_version'] == SPEC_VERSION
     # end def
 
 
@@ -47,9 +50,9 @@ def test_boolean_effects_are_not_coerced() -> None:
     with pytest.raises(ValidationError):
         AuditEvent(
             id='00000000-0000-4000-8000-000000000001',
-            spec_version='auditable-mcp/0.2',
+            spec_version=SPEC_VERSION,
             ts='2026-07-15T00:00:01.000Z',
-            call_id='call_abc',
+            session_id=SESSION,
             action_type='db.read',
             mutates=1,  # type: ignore[arg-type]
             egress=False,
@@ -66,9 +69,9 @@ def test_unknown_fields_are_forbidden() -> None:
         AuditEvent.model_validate(
             {
                 'id': '00000000-0000-4000-8000-000000000001',
-                'spec_version': 'auditable-mcp/0.2',
+                'spec_version': SPEC_VERSION,
                 'ts': '2026-07-15T00:00:01.000Z',
-                'call_id': 'call_abc',
+                'session_id': SESSION,
                 'action_type': 'db.read',
                 'mutates': False,
                 'egress': False,
@@ -89,7 +92,7 @@ def test_wrong_spec_version_is_rejected() -> None:
                 'id': '00000000-0000-4000-8000-000000000001',
                 'spec_version': 'auditable-mcp/0.1.1',
                 'ts': '2026-07-15T00:00:01.000Z',
-                'call_id': 'call_abc',
+                'session_id': SESSION,
                 'action_type': 'db.read',
                 'mutates': False,
                 'egress': False,
@@ -108,7 +111,7 @@ def test_missing_spec_version_is_rejected() -> None:
             {
                 'id': '00000000-0000-4000-8000-000000000001',
                 'ts': '2026-07-15T00:00:01.000Z',
-                'call_id': 'call_abc',
+                'session_id': SESSION,
                 'action_type': 'db.read',
                 'mutates': False,
                 'egress': False,
@@ -134,14 +137,32 @@ def test_attempt_response_union_discriminates_on_status() -> None:
     assert isinstance(accept, AcceptResponse)
     reject = _ADAPTER.validate_python({'status': 'reject', 'reason': 'schema-invalid'})
     assert isinstance(reject, RejectResponse)
-    unavailable = _ADAPTER.validate_python({'status': 'unavailable', 'reason': 'internal-error', 'retryable': True})
+    unavailable = _ADAPTER.validate_python({'status': 'unavailable', 'reason': 'internal-error'})
     assert isinstance(unavailable, UnavailableResponse)
     # end def
 
 
-def test_unavailable_must_be_retryable() -> None:
-    """An unavailable response with retryable=false is invalid (§7.1)."""
+def test_unavailable_carries_nothing_but_its_reason() -> None:
+    """`retryable` is not a field of an unavailable response (§7.1): §7.1's idempotent retry says what may follow."""
     with pytest.raises(ValidationError):
         _ADAPTER.validate_python({'status': 'unavailable', 'reason': 'x', 'retryable': False})
         # end with
+    # end def
+
+
+def test_a_half_present_countersign_pair_is_refused() -> None:
+    """§7.1: `host_signature` and `host_key_id` appear together or not at all, on the wire too."""
+    base = {
+        'status': 'accept',
+        'seq': 0,
+        'record_hash': '0' * 64,
+        'host_ts': '2026-07-15T00:00:01.000Z',
+        'previous_hash': '0' * 64,
+    }
+    assert _ADAPTER.validate_python(base) is not None
+    for half in ({'host_signature': 'AAAA'}, {'host_key_id': 'h1'}):
+        with pytest.raises(ValidationError):
+            _ADAPTER.validate_python({**base, **half})
+            # end with
+        # end for
     # end def

@@ -19,7 +19,7 @@ UNREPORTED_EGRESS = 'unreported-egress'
 class EgressObservation:
     """An egress the host observed independently at the boundary."""
 
-    call_id: str
+    session_id: str
     destination: str
     # end class
 
@@ -32,14 +32,14 @@ class BoundaryObserver:
         self._observations: list[EgressObservation] = []
         # end def
 
-    def observe_egress(self, call_id: str, destination: str) -> None:
+    def observe_egress(self, session_id: str, destination: str) -> None:
         """Record an observed egress for a call."""
-        self._observations.append(EgressObservation(call_id=call_id, destination=destination))
+        self._observations.append(EgressObservation(session_id=session_id, destination=destination))
         # end def
 
-    def for_call(self, call_id: str) -> list[EgressObservation]:
+    def for_call(self, session_id: str) -> list[EgressObservation]:
         """Return the observations recorded for a given call."""
-        return [observation for observation in self._observations if observation.call_id == call_id]
+        return [observation for observation in self._observations if observation.session_id == session_id]
         # end def
 
     # end class
@@ -49,7 +49,7 @@ class BoundaryObserver:
 class ReconcileAnomaly:
     """A mismatch between self-reports and boundary observations."""
 
-    call_id: str
+    session_id: str
     kind: str
     destination: str
     detail: str
@@ -59,7 +59,7 @@ class ReconcileAnomaly:
 def reconcile(
     records: list[SealedRecord],
     observations: list[EgressObservation],
-    call_id: str,
+    session_id: str,
 ) -> list[ReconcileAnomaly]:
     """Compare self-reported egress against boundary observations for one call.
 
@@ -70,7 +70,7 @@ def reconcile(
     Args:
         records: The sealed records to scan.
         observations: The boundary egress observations.
-        call_id: The call to reconcile.
+        session_id: The call to reconcile.
 
     Returns:
         The unreported-egress anomalies, ordered by destination for determinism.
@@ -78,13 +78,13 @@ def reconcile(
     reported = {
         _target_ref(record)
         for record in records
-        if record.event.get(fields.CALL_ID) == call_id and record.event.get(fields.EGRESS)
+        if record.event.get(fields.SESSION_ID) == session_id and record.event.get(fields.EGRESS)
     }
-    observed = {observation.destination for observation in observations if observation.call_id == call_id}
+    observed = {observation.destination for observation in observations if observation.session_id == session_id}
 
     anomalies = [
         ReconcileAnomaly(
-            call_id=call_id,
+            session_id=session_id,
             kind=UNREPORTED_EGRESS,
             destination=destination,
             detail='observed egress with no self-report',

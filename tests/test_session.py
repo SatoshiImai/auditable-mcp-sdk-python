@@ -3,12 +3,15 @@
 import pytest
 
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
+from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger
-from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Level
+from auditable_mcp.models import SPEC_VERSION, AttemptResponse, AuditCapability, Countersign, Level, TargetResource
 from auditable_mcp.session import AmcpAbortedError, AmcpSession
-from auditable_mcp.transport import accept, reject, unavailable
+from auditable_mcp.transport import AmcpUsageError, accept, reject, unavailable
 from auditable_mcp.verify import verify_ledger
+
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
 
 
 class _FixedDeps:
@@ -34,15 +37,11 @@ class _FixedDeps:
 class _StubSigner:
     """A non-cryptographic signer that stamps L2 fields so the session's L2 path can be exercised."""
 
-    def __init__(self) -> None:
-        """Start the per-key sequence at zero."""
-        self._seq = 0
-        # end def
+    key_id = 'k1'
 
-    async def sign(self, event: dict[str, object]) -> dict[str, object]:
-        """Stamp key_id, a monotonic sequence, and a placeholder signature."""
-        self._seq += 1
-        return {**event, 'key_id': 'k1', 'signer_seq': self._seq, 'signature': 'stub'}
+    async def sign(self, event: dict[str, object], signer_seq: int) -> dict[str, object]:
+        """Stamp key_id, the number the session's section holds, and a placeholder signature."""
+        return {**event, 'key_id': self.key_id, 'signer_seq': signer_seq, 'signature': 'stub'}
         # end def
 
 
@@ -51,7 +50,9 @@ class _SealingEndpoint:
 
     def __init__(self, level: Level = Level.L1) -> None:
         """Initialize an empty ledger and a monotonic host clock."""
-        self._capability = AuditCapability(spec_version=SPEC_VERSION, level=level, attempt='request')
+        self._capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=level, attempt='request', countersign=Countersign.NONE
+        )
         self.ledger = Ledger('test')
         self._clock = 0
         self.outcomes: list[dict[str, object]] = []
@@ -87,7 +88,9 @@ class _CannedEndpoint:
 
     def __init__(self, response: AttemptResponse, level: Level = Level.L1) -> None:
         """Configure the canned attempt response."""
-        self._capability = AuditCapability(spec_version=SPEC_VERSION, level=level, attempt='request')
+        self._capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=level, attempt='request', countersign=Countersign.NONE
+        )
         self._response = response
         self.outcomes: list[dict[str, object]] = []
         # end def
@@ -111,7 +114,7 @@ class _CannedEndpoint:
 
 def _session(endpoint: object, **kwargs: object) -> AmcpSession:
     """Build a session over an in-process transport to `endpoint`."""
-    return AmcpSession(InProcessTransport(endpoint), 'call_1', deps=_FixedDeps(), **kwargs)  # type: ignore[arg-type]
+    return AmcpSession(InProcessTransport(endpoint), SESSION, deps=_FixedDeps(), **kwargs)  # type: ignore[arg-type]
 
 
 async def test_happy_path_seals_attempt_then_success() -> None:
@@ -288,5 +291,282 @@ def test_current_session_requires_binding() -> None:
     """current_session raises when nothing is bound."""
     with pytest.raises(LookupError):
         current_session()
+        # end with
+    # end def
+
+
+class _FaultyTransport:
+    """A transport whose send raises, as a wire transport can (§11.3)."""
+
+    def __init__(self, *, outcome_also_fails: bool = False) -> None:
+        """Record what was attempted, and choose whether the outcome channel fails too."""
+        self.outcomes: list[dict[str, object]] = []
+        self._outcome_also_fails = outcome_also_fails
+        # end def
+
+    def negotiate(self, offered: AuditCapability) -> object:
+        """Never used by these tests."""
+        raise NotImplementedError
+        # end def
+
+    async def send_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Fail the way a broken wire does, with an error this SDK does not define."""
+        raise ConnectionResetError('the wire went away')
+        # end def
+
+    async def send_outcome(self, event: dict[str, object]) -> None:
+        """Record the outcome, or fail again if the test asked for it."""
+        if self._outcome_also_fails:
+            raise ConnectionResetError('the wire is still gone')
+            # end if
+        self.outcomes.append(event)
+        # end def
+
+    # end class
+
+
+class TestATransportFault:
+    """§6/§11.3: a throw is a failure to record and is handled exactly as `unavailable`."""
+
+    @pytest.mark.asyncio
+    async def test_it_aborts_rather_than_escaping_as_the_transport_s_own_error(self) -> None:
+        """A caller branching on the audit outcome would never see a ConnectionResetError."""
+        transport = _FaultyTransport()
+        session = AmcpSession(transport, SESSION, deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError) as aborted:
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pytest.fail('the action ran although nothing recorded it')
+                # end async with
+            # end with
+        assert aborted.value.reason == 'host-unavailable'
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_it_leaves_an_aborted_record_of_the_action_that_did_not_happen(self) -> None:
+        """§11.3 Abort Signaling: the aborted outcome carries the Tier-1 reason (§7.6)."""
+        transport = _FaultyTransport()
+        session = AmcpSession(transport, SESSION, deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pass
+                # end async with
+            # end with
+        assert [event['outcome'] for event in transport.outcomes] == ['aborted']
+        assert transport.outcomes[0]['reason'] == 'host-unavailable'
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_transport_that_fails_twice_does_not_mask_the_abort(self) -> None:
+        """The abort is what the caller must see; the second failure is not its replacement."""
+        session = AmcpSession(_FaultyTransport(outcome_also_fails=True), SESSION, deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pass
+                # end async with
+            # end with
+        # end def
+
+    # end class
+
+
+class _MisusedTransport(_FaultyTransport):
+    """A transport that refuses because the SDK's own contract was broken, not because the wire is."""
+
+    async def send_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Refuse the way the MCP binding refuses an unnegotiated session (§6.2)."""
+        raise AmcpUsageError('this session is not audit-negotiated')
+        # end def
+
+    # end class
+
+
+class TestMisuseIsNotATransportFault:
+    """§6.2, §11.3: an integrator error is not an audit outcome and must not be filed as one."""
+
+    @pytest.mark.asyncio
+    async def test_it_reaches_the_caller_instead_of_becoming_host_unavailable(self) -> None:
+        """Blaming the host for the integrator's wiring buries the one thing they need to see."""
+        transport = _MisusedTransport()
+        session = AmcpSession(transport, SESSION, deps=_FixedDeps())
+        with pytest.raises(AmcpUsageError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pytest.fail('the action ran although nothing recorded it')
+                # end async with
+            # end with
+        assert not transport.outcomes, 'an aborted record was filed for a wiring error'
+        # end def
+
+    # end class
+
+
+class _DeadSigner:
+    """The tool's own signer is down. The host is fine."""
+
+    key_id = 'k1'
+
+    async def sign(self, event: dict[str, object], signer_seq: int) -> dict[str, object]:
+        """Fail the way a KMS client does when it cannot reach the service."""
+        raise ConnectionError('KMS unreachable')
+        # end def
+
+    # end class
+
+
+class _RefusingHost:
+    """A host that rejects every attempt, so the abort path runs."""
+
+    def __init__(self) -> None:
+        """Declare an ordinary L1 capability."""
+        self.capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=Level.L1, attempt='request', countersign=Countersign.NONE
+        )
+        self.outcomes = 0
+        # end def
+
+    async def handle_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Refuse."""
+        return reject('schema-invalid')
+        # end def
+
+    async def handle_outcome(self, event: dict[str, object]) -> None:
+        """Fail while recording the abort, which must not replace the abort."""
+        self.outcomes += 1
+        raise ConnectionError('the wire went away mid-abort')
+        # end def
+
+    # end class
+
+
+class _AcceptsThenDies:
+    """Accepts the attempt, then the wire dies before the outcome can be sent."""
+
+    def __init__(self) -> None:
+        """Declare an ordinary L1 capability."""
+        self.capability = AuditCapability(
+            spec_version=SPEC_VERSION, level=Level.L1, attempt='request', countersign=Countersign.NONE
+        )
+        # end def
+
+    async def handle_attempt(self, event: dict[str, object]) -> AttemptResponse:
+        """Accept, so the body runs."""
+        return accept(0, '0' * 64, '2026-07-15T00:00:01.000Z', '0' * 64)
+        # end def
+
+    async def handle_outcome(self, event: dict[str, object]) -> None:
+        """Fail, so the terminal emission is the thing that breaks."""
+        raise ConnectionError('the wire went away')
+        # end def
+
+    # end class
+
+
+class TestTheTerminalOutcomeNeverReplacesTheBodySError:
+    """§6, §10.8: an outcome has no response channel, and the body's error is the caller's."""
+
+    @pytest.mark.asyncio
+    async def test_the_body_s_exception_reaches_the_caller(self) -> None:
+        """`__aexit__` promises not to suppress it, and a failed emission must not substitute for it."""
+        session = AmcpSession(InProcessTransport(_AcceptsThenDies()), SESSION, deps=_FixedDeps())
+        with pytest.raises(ValueError, match='the real problem'):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                raise ValueError('the real problem')
+                # end async with
+            # end with
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_successful_body_does_not_fail_on_a_lost_outcome(self) -> None:
+        """The operation already happened; the gap is the host's to resolve (§10.8), not an error here."""
+        session = AmcpSession(InProcessTransport(_AcceptsThenDies()), SESSION, deps=_FixedDeps())
+        async with session.action(
+            'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+        ):
+            pass
+            # end async with
+        # end def
+
+    # end class
+
+
+class TestAToolSideFailureIsNotTheHostSFailure:
+    """§7.2, §7.6: the Tier-1 abort reasons name the host, and a dead signer is not one of them."""
+
+    @pytest.mark.asyncio
+    async def test_a_dead_signer_reaches_the_caller_as_itself(self) -> None:
+        """`host-unavailable` would send an operator to a host that is answering perfectly well."""
+        host = AuditHost('tenant-a')
+        session = AmcpSession(InProcessTransport(host), host.open_session(), signer=_DeadSigner(), deps=_FixedDeps())
+        with pytest.raises(ConnectionError):
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pytest.fail('the action ran although nothing recorded it')
+                # end async with
+            # end with
+        assert not host.records(), 'nothing may be sealed when the event could not be built'
+        # end def
+
+    @pytest.mark.asyncio
+    async def test_a_failure_to_record_the_abort_does_not_replace_the_abort(self) -> None:
+        """Every abort path, not only the transport-fault one: the caller must see why it stopped."""
+        endpoint = _RefusingHost()
+        session = AmcpSession(InProcessTransport(endpoint), SESSION, deps=_FixedDeps())
+        with pytest.raises(AmcpAbortedError) as aborted:
+            async with session.action(
+                'db.read', TargetResource(kind='table', ref='customers'), mutates=False, egress=False
+            ):
+                pass
+                # end async with
+            # end with
+        assert aborted.value.reason == 'host-rejected'
+        assert endpoint.outcomes == 1, 'the abort was never even attempted'
+        # end def
+
+    # end class
+
+
+@pytest.mark.asyncio
+async def test_the_decorator_audits_a_synchronous_function() -> None:
+    """A tool's operation need not be async; the wrapper awaits only what is awaitable."""
+    host = AuditHost('tenant-a')
+    session = AmcpSession(InProcessTransport(host), host.open_session(), deps=_FixedDeps())
+
+    @auditable_tool(
+        action_type='db.read',
+        target_resource={'kind': 'table', 'ref': 'customers'},
+        mutates=False,
+        egress=False,
+    )
+    def read_rows() -> int:
+        """A synchronous domain operation."""
+        return 7
+        # end def
+
+    with bound_session(session):
+        assert await read_rows() == 7
+        # end with
+    assert [record.event['outcome'] for record in host.records()] == ['attempted', 'success']
+    # end def
+
+
+@pytest.mark.parametrize(
+    'session_id',
+    ['tenant-a-call-1', '0198F3A2-5C1E-7000-8000-00000000ABC0', '00000000-0000-0000-0000-000000000000', ''],
+)
+def test_a_session_id_that_is_not_a_lowercase_uuid_is_refused_at_construction(session_id: str) -> None:
+    """The mistake surfaces where it is made, naming the rule, not as a schema error at the first action."""
+    host = AuditHost('tenant-a')
+    with pytest.raises(AmcpUsageError, match='lowercase, non-nil UUID'):
+        AmcpSession(InProcessTransport(host), session_id)
         # end with
     # end def

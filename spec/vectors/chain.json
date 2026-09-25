@@ -3,9 +3,9 @@
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "auditable-mcp/0.2",
+        "spec_version": "auditable-mcp/0.3",
         "ts": "1970-01-01T00:16:41.000Z",
-        "call_id": "call_abc",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.query",
         "mutates": false,
         "egress": false,
@@ -25,14 +25,14 @@
       "seq": 0,
       "host_ts": "2026-07-15T00:00:01.000Z",
       "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-      "record_hash": "2f71d0b27f4c16c1a5d8d41c2ddb489ad1ba46549f51104b1fc067d34d251af4"
+      "record_hash": "c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "auditable-mcp/0.2",
+        "spec_version": "auditable-mcp/0.3",
         "ts": "1970-01-01T00:16:41.000Z",
-        "call_id": "call_abc",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.query",
         "mutates": false,
         "egress": false,
@@ -51,15 +51,15 @@
       },
       "seq": 1,
       "host_ts": "2026-07-15T00:00:02.000Z",
-      "previous_hash": "2f71d0b27f4c16c1a5d8d41c2ddb489ad1ba46549f51104b1fc067d34d251af4",
-      "record_hash": "7b2d13c5714d88c566c8194077d30c1d51a26366b229c50d120aa3db8852a594"
+      "previous_hash": "c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d",
+      "record_hash": "b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "auditable-mcp/0.2",
+        "spec_version": "auditable-mcp/0.3",
         "ts": "1970-01-01T00:16:42.000Z",
-        "call_id": "call_abc",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "ext.geocode",
         "mutates": false,
         "egress": true,
@@ -74,15 +74,15 @@
       },
       "seq": 2,
       "host_ts": "2026-07-15T00:00:03.000Z",
-      "previous_hash": "7b2d13c5714d88c566c8194077d30c1d51a26366b229c50d120aa3db8852a594",
-      "record_hash": "32ade553cba81c60454f6a86e235704780a399387b564ad51ef29b525cbee602"
+      "previous_hash": "b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e",
+      "record_hash": "7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "auditable-mcp/0.2",
+        "spec_version": "auditable-mcp/0.3",
         "ts": "1970-01-01T00:16:42.000Z",
-        "call_id": "call_abc",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "ext.geocode",
         "mutates": false,
         "egress": true,
@@ -97,15 +97,15 @@
       },
       "seq": 3,
       "host_ts": "2026-07-15T00:00:04.000Z",
-      "previous_hash": "32ade553cba81c60454f6a86e235704780a399387b564ad51ef29b525cbee602",
-      "record_hash": "5e28594003da59fd0d8981a8be8514f959f7dc38cfb6bc956a3e4b03c41208a2"
+      "previous_hash": "7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2",
+      "record_hash": "6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000003",
-        "spec_version": "auditable-mcp/0.2",
+        "spec_version": "auditable-mcp/0.3",
         "ts": "1970-01-01T00:16:43.000Z",
-        "call_id": "call_abc",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.write",
         "mutates": true,
         "egress": false,
@@ -117,15 +117,15 @@
       },
       "seq": 4,
       "host_ts": "2026-07-15T00:00:05.000Z",
-      "previous_hash": "5e28594003da59fd0d8981a8be8514f959f7dc38cfb6bc956a3e4b03c41208a2",
-      "record_hash": "e65315ebe2ab6f7d7a767ab92bb466786df66fea1740fe80bae2d6d7774c6d50"
+      "previous_hash": "6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa",
+      "record_hash": "f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000003",
-        "spec_version": "auditable-mcp/0.2",
+        "spec_version": "auditable-mcp/0.3",
         "ts": "1970-01-01T00:16:43.000Z",
-        "call_id": "call_abc",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.write",
         "mutates": true,
         "egress": false,
@@ -137,9 +137,9 @@
       },
       "seq": 5,
       "host_ts": "2026-07-15T00:00:06.000Z",
-      "previous_hash": "e65315ebe2ab6f7d7a767ab92bb466786df66fea1740fe80bae2d6d7774c6d50",
-      "record_hash": "242e6f5c5a61084f8cd262023ee8c8b088b94f50938f6c3bca8f0f0a5ab45e1c"
+      "previous_hash": "f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558",
+      "record_hash": "b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c"
     }
   ],
-  "digest": "242e6f5c5a61084f8cd262023ee8c8b088b94f50938f6c3bca8f0f0a5ab45e1c"
+  "digest": "b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c"
 }

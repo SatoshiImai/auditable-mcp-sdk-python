@@ -25,10 +25,35 @@ logger = logging.getLogger('sync_spec')
 
 # Subdirectories of the spec that are normative and must be reproduced byte-for-byte.
 VENDORED_SUBDIRS = ('schema', 'vectors')
+# Vendored beside the spec, from the same source repo, but not part of it: the interop vectors pin
+# what the two SDK ports agree on where the specification deliberately says nothing (§5.1).
+INTEROP_SUBDIR = 'interop'
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _VENDORED_SPEC_DIR = _REPO_ROOT / 'spec'
+_VENDORED_INTEROP_DIR = _REPO_ROOT / 'interop'
 _DEFAULT_SOURCE = _REPO_ROOT.parent / 'mcp-audit-extension' / 'spec'
+
+
+def _roots(source: Path) -> list[tuple[Path, Path]]:
+    """Return the (source, vendored) directory pairs this script keeps in step.
+
+    Two roots, because they carry different weight. `spec/` holds the normative artifacts and its
+    copy must be byte-identical. `interop/` sits beside the spec in the same source repository but is
+    not part of it: it pins what the two SDK ports agree on where §5.1 deliberately says nothing, so
+    an implementation that ignores it is still conformant.
+
+    Args:
+        source: The source spec directory.
+
+    Returns:
+        The pairs, in the order they are copied and checked.
+    """
+    return [
+        *((source / subdir, _VENDORED_SPEC_DIR / subdir) for subdir in VENDORED_SUBDIRS),
+        (source.parent / INTEROP_SUBDIR, _VENDORED_INTEROP_DIR),
+    ]
+    # end def
 
 
 def resolve_source(cli_source: str | None) -> Path:
@@ -52,55 +77,58 @@ def resolve_source(cli_source: str | None) -> Path:
     # end def
 
 
-def _iter_files(base: Path) -> list[Path]:
-    """Return the sorted relative paths of every JSON file under the vendored subdirectories."""
-    files: list[Path] = []
-    for subdir in VENDORED_SUBDIRS:
-        root = base / subdir
-        if not root.is_dir():
+def _iter_pairs(source: Path) -> list[tuple[Path, Path]]:
+    """Return every (source file, vendored file) pair the two roots hold, in a stable order."""
+    pairs: list[tuple[Path, Path]] = []
+    for src_dir, dst_dir in _roots(source):
+        if not src_dir.is_dir():
             continue
             # end if
-        for path in sorted(root.rglob('*.json')):
-            files.append(path.relative_to(base))
+        for src_path in sorted(src_dir.rglob('*.json')):
+            pairs.append((src_path, dst_dir / src_path.relative_to(src_dir)))
             # end for
         # end for
-    return sorted(files)
+    return pairs
     # end def
 
 
 def check(source: Path) -> bool:
-    """Verify the vendored spec matches the source byte-for-byte.
+    """Verify the vendored copies match the source byte-for-byte.
 
     Args:
         source: The source spec directory.
 
     Returns:
-        True if the vendored copy is in sync, False otherwise.
+        True if every vendored copy is in sync, False otherwise.
     """
-    source_files = _iter_files(source)
-    vendored_files = _iter_files(_VENDORED_SPEC_DIR)
+    pairs = _iter_pairs(source)
+    expected = {dst for _src, dst in pairs}
     ok = True
 
-    missing = set(source_files) - set(vendored_files)
-    extra = set(vendored_files) - set(source_files)
-    for rel in sorted(missing):
-        logger.error('missing in vendored spec: %s', rel)
-        ok = False
-        # end for
-    for rel in sorted(extra):
-        logger.error('stale file in vendored spec (not in source): %s', rel)
-        ok = False
-        # end for
-
-    for rel in sorted(set(source_files) & set(vendored_files)):
-        if not filecmp.cmp(source / rel, _VENDORED_SPEC_DIR / rel, shallow=False):
-            logger.error('content drift: %s', rel)
+    for src_path, dst_path in pairs:
+        if not dst_path.is_file():
+            logger.error('missing in vendored copy: %s', dst_path.relative_to(_REPO_ROOT))
+            ok = False
+        elif not filecmp.cmp(src_path, dst_path, shallow=False):
+            logger.error('content drift: %s', dst_path.relative_to(_REPO_ROOT))
             ok = False
             # end if
         # end for
 
+    for _src_dir, dst_dir in _roots(source):
+        if not dst_dir.is_dir():
+            continue
+            # end if
+        for stale in sorted(dst_dir.rglob('*.json')):
+            if stale not in expected:
+                logger.error('stale file in vendored copy (not in source): %s', stale.relative_to(_REPO_ROOT))
+                ok = False
+                # end if
+            # end for
+        # end for
+
     if ok:
-        logger.info('vendored spec is in sync (%d files)', len(source_files))
+        logger.info('vendored copies are in sync (%d files)', len(pairs))
         # end if
     return ok
     # end def
@@ -115,22 +143,16 @@ def sync(source: Path) -> int:
     Returns:
         The number of files copied.
     """
-    copied = 0
-    for subdir in VENDORED_SUBDIRS:
-        src_dir = source / subdir
-        dst_dir = _VENDORED_SPEC_DIR / subdir
+    for _src_dir, dst_dir in _roots(source):
         if dst_dir.exists():
             shutil.rmtree(dst_dir)
             # end if
-        if not src_dir.is_dir():
-            continue
-            # end if
-        for src_path in sorted(src_dir.rglob('*.json')):
-            dst_path = dst_dir / src_path.relative_to(src_dir)
-            dst_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_path, dst_path)
-            copied += 1
-            # end for
+        # end for
+    copied = 0
+    for src_path, dst_path in _iter_pairs(source):
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_path, dst_path)
+        copied += 1
         # end for
     logger.info('vendored %d files from %s', copied, source)
     return copied

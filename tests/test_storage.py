@@ -8,10 +8,20 @@ from auditable_mcp.hashing import GENESIS_HASH
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import Ledger, SealedRecord
-from auditable_mcp.models import AcceptResponse, RejectResponse, UnavailableResponse
+from auditable_mcp.models import (
+    SPEC_VERSION,
+    AcceptResponse,
+    AuditCapability,
+    Countersign,
+    Level,
+    RejectResponse,
+    UnavailableResponse,
+)
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.storage import InMemoryLedgerRepository, RepositoryError
 from auditable_mcp.verify import verify_ledger
+
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
 
 
 class _Clock:
@@ -78,13 +88,28 @@ class _FlakyRepository:
         # end def
 
 
+class _OkVerifier:
+    """A verifier that accepts every signature."""
+
+    async def verify(self, event: dict[str, object]) -> str | None:
+        """Always verify."""
+        return None
+        # end def
+
+
+def _signed(event: dict[str, object], sequence: int) -> dict[str, object]:
+    """Stamp an event with L2 fields at a given sequence."""
+    return {**event, 'key_id': 'k1', 'signer_seq': sequence, 'signature': 'stub'}
+    # end def
+
+
 def _attempt(event_id: str, **overrides: object) -> dict[str, object]:
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
-        'call_id': 'call_abc',
+        'session_id': SESSION,
         'action_type': 'db.read',
         'mutates': False,
         'egress': False,
@@ -142,7 +167,7 @@ async def test_host_persists_accepted_records() -> None:
     """A host with a repository writes every sealed record; the stored chain verifies."""
     repo = InMemoryLedgerRepository()
     host = AuditHost('tenant-a', repository=repo, clock=_Clock())
-    session = AmcpSession(InProcessTransport(host), 'call-1', deps=_FixedDeps())
+    session = AmcpSession(InProcessTransport(host), host.open_session(), deps=_FixedDeps())
     async with session.action('db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False):
         pass
         # end with
@@ -157,7 +182,7 @@ async def test_host_resumes_the_persisted_chain() -> None:
     """A resumed host continues the same hash chain; the full stored ledger verifies."""
     repo = InMemoryLedgerRepository()
     host1 = AuditHost('tenant-a', repository=repo, clock=_Clock())
-    session1 = AmcpSession(InProcessTransport(host1), 'call-1', deps=_FixedDeps(start=0))
+    session1 = AmcpSession(InProcessTransport(host1), host1.open_session(), deps=_FixedDeps(start=0))
     async with session1.action('db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False):
         pass
         # end with
@@ -165,7 +190,7 @@ async def test_host_resumes_the_persisted_chain() -> None:
 
     host2 = await AuditHost.resume('tenant-a', repository=repo, clock=_Clock())
     assert host2.digest() == tail_before
-    session2 = AmcpSession(InProcessTransport(host2), 'call-2', deps=_FixedDeps(start=10))
+    session2 = AmcpSession(InProcessTransport(host2), host2.open_session(), deps=_FixedDeps(start=10))
     async with session2.action('db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False):
         pass
         # end with
@@ -177,28 +202,61 @@ async def test_host_resumes_the_persisted_chain() -> None:
     # end def
 
 
-async def test_resume_reconstructs_replay_detection() -> None:
-    """After resume, a replay of a pre-restart attempt id is still rejected."""
+async def test_resume_ends_the_sessions_before_the_restart_and_never_issues_them_again() -> None:
+    """§6.3: a restart ends every session, and a session id in the ledger is never issued again."""
     repo = InMemoryLedgerRepository()
     host1 = AuditHost('tenant-a', repository=repo, clock=_Clock())
+    host1.open_session(SESSION)
     attempt = _attempt('00000000-0000-4000-8000-000000000001')
     await host1.handle_attempt(attempt)
 
     host2 = await AuditHost.resume('tenant-a', repository=repo, clock=_Clock())
-    response = await host2.handle_attempt(attempt)
-    assert isinstance(response, RejectResponse)
-    assert response.reason == 'replay-detected'
+    refused = await host2.handle_attempt(attempt)
+    assert isinstance(refused, RejectResponse)
+    assert refused.reason == 'replay-detected'
+    with pytest.raises(ValueError):
+        host2.open_session(SESSION)
+        # end with
+    assert len(await repo.read_all('tenant-a')) == 1
     # end def
 
 
-async def test_attempt_persistence_failure_fails_closed_and_is_retryable() -> None:
-    """A persistence failure on an attempt yields unavailable, seals nothing, and does not block retry."""
+async def test_resume_records_every_attempt_the_restart_left_unresolved() -> None:
+    """A restart ends every call in flight: an attempt with no outcome after it is `unresolved-attempt` (§6.3)."""
+    repo = InMemoryLedgerRepository()
+    host1 = AuditHost('tenant-a', repository=repo, clock=_Clock())
+    done = AmcpSession(InProcessTransport(host1), host1.open_session(), deps=_FixedDeps(start=0))
+    async with done.action('db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False):
+        pass
+        # end with
+    host1.open_session(SESSION)
+    left_open = '00000000-0000-4000-8000-0000000000aa'
+    await host1.handle_attempt(_attempt(left_open))
+
+    host2 = await AuditHost.resume('tenant-a', repository=repo, clock=_Clock())
+    assert [(anomaly.id, anomaly.kind) for anomaly in host2.anomalies()] == [(left_open, 'unresolved-attempt')]
+    # The session the attempt was made in is not open on the resumed host.
+    refused = await host2.handle_attempt(_attempt('00000000-0000-4000-8000-0000000000ab'))
+    assert isinstance(refused, RejectResponse)
+    # end def
+
+
+async def test_resume_of_an_empty_store_holds_no_anomaly() -> None:
+    """Resuming at first start is safe: nothing was in flight."""
+    host = await AuditHost.resume('tenant-a', repository=InMemoryLedgerRepository(), clock=_Clock())
+    assert host.anomalies() == []
+    assert host.records() == []
+    # end def
+
+
+async def test_attempt_persistence_failure_fails_closed_and_the_identical_attempt_may_come_again() -> None:
+    """A persistence failure on an attempt yields unavailable, seals nothing, and does not block a resend (§7.1)."""
     repo = _FlakyRepository()
     repo.fail = True
     host = AuditHost('tenant-a', repository=repo, clock=_Clock())
+    host.open_session(SESSION)
     response = await host.handle_attempt(_attempt('00000000-0000-4000-8000-000000000001'))
     assert isinstance(response, UnavailableResponse)
-    assert response.retryable is True
     assert host.records() == []
 
     repo.fail = False
@@ -211,6 +269,7 @@ async def test_outcome_persistence_failure_is_logged_not_flagged(caplog: pytest.
     """A persistence failure on an outcome is a completeness gap (§10.8): logged, not a Tier-1 anomaly (§7.6)."""
     repo = _FlakyRepository()
     host = AuditHost('tenant-a', repository=repo, clock=_Clock())
+    host.open_session(SESSION)
     event_id = '00000000-0000-4000-8000-000000000001'
     await host.handle_attempt(_attempt(event_id))
     repo.fail = True
@@ -219,4 +278,35 @@ async def test_outcome_persistence_failure_is_logged_not_flagged(caplog: pytest.
     assert host.anomalies() == []
     assert len(host.records()) == 1
     assert any('could not persist' in record.message for record in caplog.records)
+    # end def
+
+
+async def test_lost_outcome_does_not_advance_the_signer_seq_tracker() -> None:
+    """A lost outcome was received but not sealed, so the next value is neither a gap nor a replay (§7.4)."""
+    repo = _FlakyRepository()
+    host = AuditHost(
+        'tenant-a',
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', countersign=Countersign.NONE),
+        verifier=_OkVerifier(),
+        repository=repo,
+        clock=_Clock(),
+    )
+    host.open_session(SESSION)
+    first = '00000000-0000-4000-8000-000000000001'
+    assert isinstance(await host.handle_attempt(_signed(_attempt(first), 0)), AcceptResponse)
+    repo.fail = True
+    await host.handle_outcome(_signed(_attempt(first, outcome='success'), 1))
+    repo.fail = False
+    second = '00000000-0000-4000-8000-000000000002'
+    assert isinstance(await host.handle_attempt(_signed(_attempt(second), 2)), AcceptResponse)
+    assert host.anomalies() == []
+    # end def
+
+
+def test_resuming_an_empty_partition_starts_at_genesis() -> None:
+    """A host resuming a partition that holds nothing is a fresh chain, not an error."""
+    ledger = Ledger('tenant-a')
+    ledger.resume_from(None)
+    assert ledger.digest() == GENESIS_HASH
+    assert len(ledger) == 0
     # end def

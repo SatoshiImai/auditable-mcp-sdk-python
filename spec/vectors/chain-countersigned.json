@@ -1,0 +1,197 @@
+{
+  "keys": {
+    "host-key-2026": {
+      "alg": "Ed25519",
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q"
+      }
+    }
+  },
+  "records": [
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "1970-01-01T00:16:41.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "action_type": "db.query",
+        "mutates": false,
+        "egress": false,
+        "target_resource": {
+          "kind": "database",
+          "ref": "customer-postgres"
+        },
+        "outcome": "attempted",
+        "action_context": {
+          "dialect": "postgres",
+          "tables_accessed": [
+            "customers"
+          ]
+        },
+        "action_context_hash": "sha256:f951d439bc585c7850ed1d1ea1f232150fca355cf9814ba378a0755802cbf81e"
+      },
+      "seq": 0,
+      "host_ts": "2026-07-15T00:00:01.000Z",
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "record_hash": "c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d",
+      "host_signature": "ZG__7LYq6AGkVyGfEiGyb_jAdDq90WR6Gbw3pw7mV8A2VnGP5rQi3C4wztJwwrT7pgynO6xhPk2PIyQiUMyoBw",
+      "host_key_id": "host-key-2026",
+      "log_id": "acme#2026-07-15",
+      "countersignature_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:01.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"record_hash\":\"c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d\",\"seq\":0}",
+        "sha256": "223e086b7216e90ca89d863fd408275ad5be94b282f33874c9c0b5e45f4e244b"
+      }
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "1970-01-01T00:16:41.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "action_type": "db.query",
+        "mutates": false,
+        "egress": false,
+        "target_resource": {
+          "kind": "database",
+          "ref": "customer-postgres"
+        },
+        "outcome": "success",
+        "action_context": {
+          "dialect": "postgres",
+          "tables_accessed": [
+            "customers"
+          ]
+        },
+        "action_context_hash": "sha256:f951d439bc585c7850ed1d1ea1f232150fca355cf9814ba378a0755802cbf81e"
+      },
+      "seq": 1,
+      "host_ts": "2026-07-15T00:00:02.000Z",
+      "previous_hash": "c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d",
+      "record_hash": "b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e",
+      "host_signature": "PfleRPM-2Fyz1koFaJC_627j9ZoGzNUqG6tThB32-xL4VDUMJA4YQeGy5OMRaBoh9svNbbQYYifpsed_ENjwBA",
+      "host_key_id": "host-key-2026",
+      "log_id": "acme#2026-07-15",
+      "countersignature_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:02.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d\",\"record_hash\":\"b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e\",\"seq\":1}",
+        "sha256": "cc6da4325170b8394b1a208e56994e56d14eb5e36aa6d03f58a5f1c721a809d8"
+      }
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "1970-01-01T00:16:42.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "action_type": "ext.geocode",
+        "mutates": false,
+        "egress": true,
+        "target_resource": {
+          "kind": "endpoint",
+          "ref": "https://geo.example/v1/lookup"
+        },
+        "outcome": "attempted",
+        "action_context": {
+          "provider": "geo.example"
+        }
+      },
+      "seq": 2,
+      "host_ts": "2026-07-15T00:00:03.000Z",
+      "previous_hash": "b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e",
+      "record_hash": "7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2",
+      "host_signature": "izWZfTRV-8lUzh06-Ve9I7UEl_ic8Uw1nZpCpwUm6j1fokMkvmw8nY4_Wh_rQnL2V5HGa8ahlbCKoyQFAuMYCQ",
+      "host_key_id": "host-key-2026",
+      "log_id": "acme#2026-07-15",
+      "countersignature_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:03.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e\",\"record_hash\":\"7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2\",\"seq\":2}",
+        "sha256": "87b18ad9b78200100dda8d00bc9ea66032b8ab2af3a33a68c344bffb8fffa218"
+      }
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "1970-01-01T00:16:42.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "action_type": "ext.geocode",
+        "mutates": false,
+        "egress": true,
+        "target_resource": {
+          "kind": "endpoint",
+          "ref": "https://geo.example/v1/lookup"
+        },
+        "outcome": "success",
+        "action_context": {
+          "provider": "geo.example"
+        }
+      },
+      "seq": 3,
+      "host_ts": "2026-07-15T00:00:04.000Z",
+      "previous_hash": "7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2",
+      "record_hash": "6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa",
+      "host_signature": "kFBicP-r_PoZ8HA-6p-sbZ1s8ff5bb88xfowecrrdewyksity_QvL8zFZyso5y9lmK5JnPuqa4XR7FhXP23ODg",
+      "host_key_id": "host-key-2026",
+      "log_id": "acme#2026-07-15",
+      "countersignature_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:04.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2\",\"record_hash\":\"6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa\",\"seq\":3}",
+        "sha256": "30507e005b4c7688f188547ad4b4636920585818eb4a4805dda526dba61defa0"
+      }
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "1970-01-01T00:16:43.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "enriched_addresses"
+        },
+        "outcome": "attempted"
+      },
+      "seq": 4,
+      "host_ts": "2026-07-15T00:00:05.000Z",
+      "previous_hash": "6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa",
+      "record_hash": "f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558",
+      "host_signature": "YkqJq4_AVxRz-plElVwRG09jcJkceaqAhYqWZgnUviRV7nM2chnO_7Q6OOcQp-2AlAOkAY4i6-CowM1VrualCQ",
+      "host_key_id": "host-key-2026",
+      "log_id": "acme#2026-07-15",
+      "countersignature_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:05.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa\",\"record_hash\":\"f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558\",\"seq\":4}",
+        "sha256": "ec128e083f824ceccc56ad84177e131d0d244446edd3eecad46c818dac9ec84b"
+      }
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "spec_version": "auditable-mcp/0.3",
+        "ts": "1970-01-01T00:16:43.000Z",
+        "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "enriched_addresses"
+        },
+        "outcome": "success"
+      },
+      "seq": 5,
+      "host_ts": "2026-07-15T00:00:06.000Z",
+      "previous_hash": "f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558",
+      "record_hash": "b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c",
+      "host_signature": "IBDfc7p8GbsydmEHGnSd2vUBBbSyDj1byOYiJ28UvgD48vuoZsnRuq9FlNzgNgCgsV9fextGzBSx0YHiexWcDQ",
+      "host_key_id": "host-key-2026",
+      "log_id": "acme#2026-07-15",
+      "countersignature_preimage": {
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:06.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558\",\"record_hash\":\"b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c\",\"seq\":5}",
+        "sha256": "b25bd6a81c05651e02068e3da0d9b5eca3676c55cfc48d2ebac02611318cccae"
+      }
+    }
+  ],
+  "digest": "b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c"
+}

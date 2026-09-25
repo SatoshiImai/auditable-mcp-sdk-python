@@ -1,11 +1,11 @@
 """Unit tests for the Level-2 layer: Ed25519 signing, verification, and reconciliation."""
 
-import base64
-
-from cryptography.hazmat.primitives import hashes
+import pytest
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
+from auditable_mcp.encoding import b64url_encode
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2 import (
@@ -14,17 +14,22 @@ from auditable_mcp.l2 import (
     EgressObservation,
     KeyRegistry,
     KeyRegistryVerifier,
+    KeyRole,
     SignatureAlgorithm,
     generate_tool_key,
     reconcile,
     sign_event,
     signature_payload,
+    verify_detached_signature,
+    verify_ecdsa_signature,
     verify_ed25519_signature,
 )
 from auditable_mcp.ledger import Ledger
-from auditable_mcp.models import SPEC_VERSION, AuditCapability, Level
+from auditable_mcp.models import SPEC_VERSION, AuditCapability, Countersign, Level
 from auditable_mcp.session import AmcpSession
 from auditable_mcp.verify import verify_ledger
+
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
 
 
 def _ecdsa_sign(
@@ -35,7 +40,7 @@ def _ecdsa_sign(
     der = private_key.sign(signature_payload(base), ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(der)
     raw = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
-    return {**base, 'signature': base64.b64encode(raw).decode('ascii')}
+    return {**base, 'signature': b64url_encode(raw)}
     # end def
 
 
@@ -78,9 +83,9 @@ def _event(event_id: str = '00000000-0000-4000-8000-000000000001', **overrides: 
     """Build a wire attempt event."""
     event: dict[str, object] = {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': SPEC_VERSION,
         'ts': '2026-07-15T00:00:01.000Z',
-        'call_id': 'call_abc',
+        'session_id': SESSION,
         'action_type': 'db.read',
         'mutates': False,
         'egress': False,
@@ -115,13 +120,13 @@ def test_tampered_signature_fails_verification() -> None:
     """A substituted signature does not verify."""
     key = generate_tool_key('k1')
     signed = sign_event(_event(), key.key_id, 0, key.private_key)
-    forged = {**signed, 'signature': base64.b64encode(b'\x00' * 64).decode('ascii')}
+    forged = {**signed, 'signature': b64url_encode(b'\x00' * 64)}
     assert not verify_ed25519_signature(forged, key.public_key)
     # end def
 
 
 def test_non_base64_signature_is_rejected_gracefully() -> None:
-    """A malformed (non-base64) signature returns False rather than raising."""
+    """A malformed (non-base64url) signature returns False rather than raising."""
     key = generate_tool_key('k1')
     signed = sign_event(_event(), key.key_id, 0, key.private_key)
     assert not verify_ed25519_signature({**signed, 'signature': 'not-base64!!'}, key.public_key)
@@ -166,7 +171,7 @@ async def test_verifier_handles_a_heterogeneous_fleet() -> None:
     ec_private = ec.generate_private_key(ec.SECP256R1())
     registry = KeyRegistry()
     registry.register_tool_key(ed)
-    registry.register('ec-tool', ec_private.public_key(), SignatureAlgorithm.ECDSA_P256_SHA256)
+    registry.register('ec-tool', ec_private.public_key(), SignatureAlgorithm.ES256)
     verifier = KeyRegistryVerifier(registry)
 
     ed_signed = sign_event(_event(), ed.key_id, 0, ed.private_key)
@@ -194,15 +199,17 @@ def test_key_registry_lifecycle() -> None:
         pass
         # end try
     registry.revoke('tool-1')
-    assert registry.get('tool-1') is None
+    entry = registry.get('tool-1')
+    assert entry is not None and entry.revoked
+    assert registry.current('tool-1') is None
     # end def
 
 
-async def test_signer_emits_a_monotonic_sequence() -> None:
-    """Ed25519Signer stamps 0, 1, 2, … across successive events."""
-    key = generate_tool_key('k1')
-    signer = Ed25519Signer.from_tool_key(key)
-    assert [(await signer.sign(_event()))['signer_seq'] for _ in range(3)] == [0, 1, 2]
+async def test_the_signer_stamps_the_number_it_is_given() -> None:
+    """The sequence is not the signer's: §7.4 cannot be held by a counter in one process's memory."""
+    signer = Ed25519Signer.from_tool_key(generate_tool_key('k1'))
+    assert [(await signer.sign(_event(), n))['signer_seq'] for n in (0, 1, 2)] == [0, 1, 2]
+    assert signer.key_id == 'k1'
     # end def
 
 
@@ -213,13 +220,13 @@ async def test_end_to_end_l2_without_stubs() -> None:
     registry.register_tool_key(tool_key)
     host = AuditHost(
         'tenant-a',
-        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request'),
+        AuditCapability(spec_version=SPEC_VERSION, level=Level.L2, attempt='request', countersign=Countersign.NONE),
         verifier=KeyRegistryVerifier(registry),
         clock=_Clock(),
     )
     session = AmcpSession(
         InProcessTransport(host),
-        'call_1',
+        host.open_session(),
         deps=_FixedDeps(),
         signer=Ed25519Signer.from_tool_key(tool_key),
     )
@@ -237,9 +244,9 @@ async def test_end_to_end_l2_without_stubs() -> None:
     # end def
 
 
-def _egress_event(event_id: str, call_id: str, ref: str, *, egress: bool) -> dict[str, object]:
+def _egress_event(event_id: str, session_id: str, ref: str, *, egress: bool) -> dict[str, object]:
     """Build an event with a given egress flag and target ref."""
-    return _event(event_id, call_id=call_id, egress=egress, target_resource={'kind': 'endpoint', 'ref': ref})
+    return _event(event_id, session_id=session_id, egress=egress, target_resource={'kind': 'endpoint', 'ref': ref})
     # end def
 
 
@@ -281,4 +288,157 @@ def test_reconcile_clean_when_all_egress_is_reported() -> None:
     )
     observations = [EgressObservation('c1', 'https://api.example')]
     assert reconcile(ledger.records(), observations, 'c1') == []
+    # end def
+
+
+class TestRegistryEntriesAreConforming:
+    """§5.1: an entry binds a non-empty key_id to one algorithm and a key of that algorithm."""
+
+    def test_an_entry_cannot_bind_a_key_of_another_algorithm(self) -> None:
+        """Carried to verification it reads as a forged signature, which names the wrong fact."""
+        registry = KeyRegistry(KeyRole.HOST)
+        ec_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+        with pytest.raises(ValueError, match='not a key of Ed25519'):
+            registry.register('k1', ec_key, SignatureAlgorithm.ED25519)
+            # end with
+        with pytest.raises(ValueError, match='not a key of ES256'):
+            registry.register('k2', generate_tool_key('t').public_key, SignatureAlgorithm.ES256)
+            # end with
+        # end def
+
+    def test_an_es256_entry_cannot_bind_a_key_on_another_curve(self) -> None:
+        """ES256 is P-256 (§5.1): a P-384 key under it is a misprovisioned entry, refused when loaded."""
+        registry = KeyRegistry()
+        p384_key = ec.generate_private_key(ec.SECP384R1()).public_key()
+        with pytest.raises(ValueError, match='not a key of ES256'):
+            registry.register('k3', p384_key, SignatureAlgorithm.ES256)
+            # end with
+        assert registry.get('k3') is None
+        # end def
+
+    def test_an_entry_cannot_bind_an_empty_key_id(self) -> None:
+        """§5.1 requires a non-empty key_id; an empty one names no signer."""
+        registry = KeyRegistry()
+        with pytest.raises(ValueError, match='non-empty'):
+            registry.register('', generate_tool_key('t').public_key, SignatureAlgorithm.ED25519)
+            # end with
+        # end def
+
+    def test_a_conforming_entry_still_registers(self) -> None:
+        """The guard refuses the disagreeing pair, not the pair the deployment actually has."""
+        registry = KeyRegistry()
+        tool_key = generate_tool_key('t')
+        registry.register(tool_key.key_id, tool_key.public_key, SignatureAlgorithm.ED25519)
+        registry.register('ec', ec.generate_private_key(ec.SECP256R1()).public_key(), SignatureAlgorithm.ES256)
+        assert registry.get(tool_key.key_id) is not None
+        assert registry.get('ec') is not None
+        # end def
+
+    # end class
+
+
+class TestASignatureOfTheWrongShape:
+    """§5.1: undecodable base64url, or the wrong length for the bound algorithm, is a failed verification."""
+
+    def test_a_non_string_signature_does_not_verify(self) -> None:
+        """The field is pinned to a string; anything else decodes to nothing."""
+        key = generate_tool_key('k')
+        event = {**_event(), 'signature': 12345}
+        assert verify_ed25519_signature(event, key.public_key) is False
+        # end def
+
+    def test_an_undecodable_signature_does_not_verify(self) -> None:
+        """Not base64url at all (§5.1 pins the URL-safe alphabet, unpadded)."""
+        key = generate_tool_key('k')
+        assert verify_ed25519_signature({**_event(), 'signature': 'not base64!'}, key.public_key) is False
+        # end def
+
+    def test_an_ecdsa_signature_of_the_wrong_length_does_not_verify(self) -> None:
+        """§5.1 pins the fixed 64-byte P1363 r||s form, so a DER blob is a failed verification."""
+        ec_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+        short = b64url_encode(b'\x00' * 8)
+        assert verify_ecdsa_signature({**_event(), 'signature': short}, ec_key) is False
+        # end def
+
+    def test_a_detached_signature_of_the_wrong_length_does_not_verify(self) -> None:
+        """The same rule on the countersignature preimage (§7.1)."""
+        registry = KeyRegistry(KeyRole.HOST)
+        ec_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+        registry.register('h1', ec_key, SignatureAlgorithm.ES256)
+        entry = registry.get('h1')
+        assert entry is not None
+        short = b64url_encode(b'\x00' * 8)
+        assert verify_detached_signature(b'payload', short, entry) is False
+        # end def
+
+    # end class
+
+
+def test_an_undecodable_detached_signature_does_not_verify() -> None:
+    """§7.1's countersignature is base64url like any other signature (§5.1)."""
+    registry = KeyRegistry(KeyRole.HOST)
+    key = generate_tool_key('h1')
+    registry.register('h1', key.public_key, SignatureAlgorithm.ED25519)
+    entry = registry.get('h1')
+    assert entry is not None
+    assert verify_detached_signature(b'payload', 'not base64!', entry) is False
+    # end def
+
+
+def test_an_ecdsa_countersign_signature_verifies_against_its_registry_entry() -> None:
+    """A heterogeneous fleet countersignes with KMS keys too, so the detached path runs both algorithms."""
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    registry = KeyRegistry(KeyRole.HOST)
+    registry.register('h-ec', private_key.public_key(), SignatureAlgorithm.ES256)
+    entry = registry.get('h-ec')
+    assert entry is not None
+    payload = b'{"host_ts":"2026-07-15T00:00:01.000Z"}'
+    der = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
+    r, s = decode_dss_signature(der)
+    raw = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
+    assert verify_detached_signature(payload, b64url_encode(raw), entry) is True
+    assert verify_detached_signature(b'other payload', b64url_encode(raw), entry) is False
+    # end def
+
+
+def test_the_offline_signature_checker_matches_the_host_side_verdict() -> None:
+    """§11.4's verifier is synchronous and reads stored records; the two forms must agree."""
+    key = generate_tool_key('k1')
+    registry = KeyRegistry()
+    registry.register_tool_key(key)
+    checker = KeyRegistryVerifier(registry)
+    signed_event = sign_event(_event(), 'k1', 0, key.private_key)
+    assert checker.check(signed_event) is True
+    assert checker.check({**signed_event, 'signature': b64url_encode(b'\x00' * 64)}) is False
+    # end def
+
+
+def test_re_registering_the_same_key_read_again_is_idempotent() -> None:
+    """§10.9 forbids binding a `key_id` to a different key, not to the same one held twice.
+
+    A deployment that reloads its registry from disk holds a new object for the same key, so
+    comparing by identity would refuse the case the rule permits.
+    """
+    registry = KeyRegistry()
+    key = generate_tool_key('k1')
+    encoded = key.public_key.public_bytes(
+        encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    reloaded = serialization.load_der_public_key(encoded)
+    registry.register('k1', key.public_key, SignatureAlgorithm.ED25519)
+    registry.register('k1', reloaded, SignatureAlgorithm.ED25519)  # type: ignore[arg-type]
+    assert registry.get('k1') is not None
+    with pytest.raises(ValueError, match='§10.9'):
+        registry.register('k1', generate_tool_key('other').public_key, SignatureAlgorithm.ED25519)
+        # end with
+    # end def
+
+
+def test_the_same_p256_point_in_two_encodings_is_the_same_key() -> None:
+    """§5.1 admits both SEC1 forms, so the compressed and uncompressed point are one key (§10.9)."""
+    registry = KeyRegistry(KeyRole.HOST)
+    public_key = ec.generate_private_key(ec.SECP256R1()).public_key()
+    registry.register('h1', public_key, SignatureAlgorithm.ES256)
+    registry.register('h1', public_key, SignatureAlgorithm.ES256)
+    assert registry.get('h1') is not None
     # end def
