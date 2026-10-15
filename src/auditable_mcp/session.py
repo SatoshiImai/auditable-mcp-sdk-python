@@ -346,6 +346,12 @@ class AuditedAction:
         # end def
 
     @property
+    def id(self) -> str:
+        """The event id the operation's attempt and outcome share (§7.1)."""
+        return self._id
+        # end def
+
+    @property
     def disclosure(self) -> str | None:
         """The Disclosure that opens this operation's `action_context_salted_hash` (§4.3).
 

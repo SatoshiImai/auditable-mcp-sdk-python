@@ -32,6 +32,8 @@ Tracking spec `auditable-mcp/0.4`. The TypeScript SDK's 0.4.0 is the same change
     acknowledges an outcome's delivery. `handle_outcome` and the `AuditEndpoint` protocol are unchanged.
   - `SessionNumbering(start)` resumes a session's `signer_seq` at `start` (default 0, as before), for a
     tool that resumes a session after its own restart from the last value its records show (§7.4).
+  - `AuditedAction.id` names the event id the operation's attempt and outcome share, so a tool can write
+    ahead, in its own records, what it is about to do with an accepted attempt.
 
 ## 0.3.1 - 2026-10-16
 

@@ -233,6 +233,18 @@ class TestSessionNumberingStart:
         assert [record.event['signer_seq'] for record in host.records()] == [3, 4]
         # end def
 
+    async def test_names_on_the_action_the_id_its_attempt_and_outcome_carry(self) -> None:
+        host = AuditHost('tenant-a', clock=_Clock())
+        host.open_session(SESSION)
+        session = AmcpSession(InProcessTransport(host), SESSION)
+        async with session.action(
+            'db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False
+        ) as action:
+            event_id = action.id
+            # end async with
+        assert [record.event['id'] for record in host.records()] == [event_id, event_id]
+        # end def
+
     def test_refuses_a_start_that_is_not_a_non_negative_integer(self) -> None:
         for start in (-1, 1.5, True):
             with pytest.raises(ValueError, match='§7.4'):
