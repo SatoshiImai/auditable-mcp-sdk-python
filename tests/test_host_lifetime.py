@@ -7,7 +7,7 @@ The same cases as the TypeScript SDK's `host-lifetime.test.ts`.
 
 import pytest
 
-from auditable_mcp.host import AuditHost, OutcomeDisposition
+from auditable_mcp.host import AuditHost, OpenSession, OutcomeDisposition, SignerTracker
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import SealedRecord
 from auditable_mcp.models import SPEC_VERSION, AuditCapability, Countersign, Level
@@ -213,6 +213,47 @@ class TestResumeWithOpenSessions:
         assert [anomaly.kind for anomaly in host.anomalies()] == ['unresolved-attempt']
         refused = await host.handle_attempt(_signed(_attempt(_id(3)), 3), session_id=SESSION)
         assert refused.status == 'reject'
+        # end def
+
+    # end class
+
+
+class TestSignerTracker:
+    """A session restored with the signer tracker kept outside the ledger (§7.4)."""
+
+    @staticmethod
+    async def _refuse_one() -> tuple[InMemoryLedgerRepository, SignerTracker | None]:
+        repo = InMemoryLedgerRepository()
+        host = AuditHost('tenant-a', _L2, repository=repo, verifier=_OkVerifier(), clock=_Clock())
+        host.open_session(SESSION)
+        await host.handle_attempt(_signed(_attempt(_id(1)), 0))
+        # The same id with another event is refused, after its signature verified: decided, and not sealed.
+        refused = await host.handle_attempt(_signed(_attempt(_id(1), action_type='db.write'), 1))
+        assert refused.status == 'reject' and refused.reason == 'replay-detected'
+        return repo, host.signer_tracker(SESSION)
+        # end def
+
+    async def test_exports_the_decisions_the_ledger_does_not_hold(self) -> None:
+        _, signers = await self._refuse_one()
+        assert signers is not None and signers.decided == {'k1': [0, 1]}
+        # end def
+
+    async def test_refuses_after_a_restart_a_signer_seq_decided_only_by_a_refusal(self) -> None:
+        repo, signers = await self._refuse_one()
+        restored = await AuditHost.resume(
+            'tenant-a',
+            _L2,
+            repository=repo,
+            verifier=_OkVerifier(),
+            clock=_Clock(),
+            open_sessions=[OpenSession(SESSION, signers)],
+        )
+        again = await restored.handle_attempt(_signed(_attempt(_id(2)), 1))
+        assert again.status == 'reject' and again.reason == 'replay-detected'
+        forgetful = await AuditHost.resume(
+            'tenant-a', _L2, repository=repo, verifier=_OkVerifier(), clock=_Clock(), open_sessions=[SESSION]
+        )
+        assert (await forgetful.handle_attempt(_signed(_attempt(_id(2)), 1))).status == 'accept'
         # end def
 
     # end class

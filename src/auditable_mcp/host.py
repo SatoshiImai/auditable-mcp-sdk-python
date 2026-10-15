@@ -125,6 +125,28 @@ class OutcomeDisposition(StrEnum):
     # end class
 
 
+@dataclass(frozen=True)
+class SignerTracker:
+    """A session's `signer_seq` tracker (§7.4): per key, the values decided and the highest received.
+
+    A host whose sessions outlive it keeps this beside its ledger, since a refused attempt is a decision the
+    ledger does not hold.
+    """
+
+    decided: dict[str, list[int]] = field(default_factory=dict)
+    received: dict[str, int] = field(default_factory=dict)
+    # end class
+
+
+@dataclass(frozen=True)
+class OpenSession:
+    """A session to restore as open on `AuditHost.resume`, with the tracker kept for it outside the ledger."""
+
+    session_id: str
+    signers: SignerTracker | None = None
+    # end class
+
+
 @dataclass
 class _Session:
     """One audit session: one tools/call (§6.3).
@@ -240,7 +262,7 @@ class AuditHost:
         countersigner: Countersigner | None = None,
         log_id: str | None = None,
         clock: Clock | None = None,
-        open_sessions: Iterable[str] = (),
+        open_sessions: Iterable[str | OpenSession] = (),
     ) -> AuditHost:
         """Build a host that continues `partition`'s persisted chain.
 
@@ -261,8 +283,8 @@ class AuditHost:
         restored as open from its sealed records: the attempts it accepted, the outcome sealed per
         operation, and per key the `signer_seq` values decided and the highest received (§7.4). Its
         unresolved attempts are not flagged, since its session has not ended. Decisions the host reached
-        without sealing - a refused attempt - are not in the ledger and are not restored. Empty,
-        `resume` ends every session (§6.3).
+        without sealing - a refused attempt - are not in the ledger; a host that kept them with
+        `signer_tracker` gives them back as `OpenSession.signers`. Empty, `resume` ends every session (§6.3).
         """
         host = cls(
             partition,
@@ -283,10 +305,20 @@ class AuditHost:
                 host._issued.add(session_id)
                 # end if
             # end for
-        open_ = frozenset(open_sessions)
-        for session_id in open_:
-            host._issued.add(session_id)
-            host._sessions[session_id] = _restored_session(session_id, records)
+        restored = [OpenSession(entry) if isinstance(entry, str) else entry for entry in open_sessions]
+        open_ = frozenset(entry.session_id for entry in restored)
+        for entry in restored:
+            host._issued.add(entry.session_id)
+            session = _restored_session(entry.session_id, records)
+            if entry.signers is not None:
+                for key_id, values in entry.signers.decided.items():
+                    session.decided.setdefault(key_id, set()).update(values)
+                    # end for
+                for key_id, value in entry.signers.received.items():
+                    session.received[key_id] = max(session.received.get(key_id, value), value)
+                    # end for
+                # end if
+            host._sessions[entry.session_id] = session
             # end for
         host._flag_unresolved(records, open_)
         return host
@@ -435,6 +467,22 @@ class AuditHost:
     def anomalies(self) -> list[IntegrityAnomaly]:
         """Return the detected integrity anomalies."""
         return list(self._anomalies)
+        # end def
+
+    def signer_tracker(self, session_id: str) -> SignerTracker | None:
+        """The `signer_seq` tracker of an open session (§7.4), or None for a session that is not open.
+
+        For a host whose sessions outlive it to keep beside its ledger and give back to `resume` as
+        `OpenSession.signers`.
+        """
+        session = self._sessions.get(session_id)
+        if session is None:
+            return None
+            # end if
+        return SignerTracker(
+            decided={key_id: sorted(values) for key_id, values in session.decided.items()},
+            received=dict(session.received),
+        )
         # end def
 
     def records(self) -> list[SealedRecord]:

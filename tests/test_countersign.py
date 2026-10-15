@@ -1,7 +1,7 @@
 """Unit tests for the countersignature axis (§5.2, §7.1, §7.2): the host side."""
 
 from collections.abc import Callable, Mapping
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import pytest
 from cryptography.exceptions import InvalidSignature
@@ -107,6 +107,38 @@ def _signing_host() -> tuple[AuditHost, Ed25519Countersigner, object]:
     host = AuditHost('tenant-a', _capability(Countersign.HOST), countersigner=signer, clock=_Clock())
     host.open_session(SESSION)
     return host, signer, key.private_key.public_key()
+    # end def
+
+
+class _Unchecked:
+    """A countersignature verifier that could not fetch the host's keys."""
+
+    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> Literal['unavailable']:
+        """It could not check."""
+        return 'unavailable'
+        # end def
+
+    # end class
+
+
+async def test_aborts_host_unavailable_when_the_verifier_could_not_check() -> None:
+    """A key set that could not be fetched is a failure to record, not a failed countersignature."""
+    host, _, _ = _signing_host()
+    session = AmcpSession(
+        InProcessTransport(host),
+        SESSION,
+        deps=_FixedDeps(),
+        countersignature_verifier=_Unchecked(),
+        require_countersign=True,
+    )
+    with pytest.raises(AmcpAbortedError) as raised:
+        await _run(session)
+        # end with
+    assert raised.value.reason == 'host-unavailable'
+    assert [(r.event['outcome'], r.event.get('reason')) for r in host.records()] == [
+        ('attempted', None),
+        ('aborted', 'host-unavailable'),
+    ]
     # end def
 
 

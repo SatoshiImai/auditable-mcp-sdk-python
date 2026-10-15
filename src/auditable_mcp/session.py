@@ -26,7 +26,7 @@ import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import TracebackType
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import uuid4
 
 import anyio
@@ -76,8 +76,13 @@ class CountersignatureVerifier(Protocol):
     False: the countersignature is not established either way (§10.9).
     """
 
-    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool:
-        """Return True if the signature verifies against the registered host key."""
+    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool | Literal['unavailable']:
+        """Return True if the signature verifies against the registered host key, False if it does not.
+
+        Return `'unavailable'` when it could not be checked for a reason that is not the signature's - the
+        host's key set could not be fetched - which the tool reads as a failure to record (§6), not as a failed
+        countersignature.
+        """
         ...
 
     # end class
@@ -457,7 +462,7 @@ class AuditedAction:
         if response.host_signature is not None and self._session._countersignature_verifier is not None:
             # The model admits the triple only together (§7.1), so a missing member here is a partial
             # countersignature that could not be checked, which is what `host-signature-invalid` names.
-            verified = False
+            verified: bool | Literal['unavailable'] = False
             if response.host_key_id is not None and response.log_id is not None:
                 payload = countersignature_payload(
                     response.seq, response.host_ts, response.log_id, response.previous_hash, response.record_hash
@@ -465,6 +470,10 @@ class AuditedAction:
                 verified = await self._session._countersignature_verifier.verify(
                     response.host_key_id, response.host_signature, payload
                 )
+                # end if
+            if verified == 'unavailable':
+                await self._emit_aborted_best_effort(reasons.HOST_UNAVAILABLE)
+                raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_UNAVAILABLE)
                 # end if
             if not verified:
                 await self._emit_aborted_best_effort(reasons.HOST_SIGNATURE_INVALID)
