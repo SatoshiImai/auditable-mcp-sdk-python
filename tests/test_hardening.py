@@ -635,6 +635,32 @@ class TestTheVerifierNeverRaises:
         assert [(issue.seq, issue.kind) for issue in issues] == [(1, 'schema-invalid')]
         # end def
 
+    def test_a_record_sealed_under_0_3_verifies_in_its_own_shape(self) -> None:
+        """§11.4: a 0.3 record verifies before a 0.4 record, not after one."""
+        earlier = _event(2, spec_version='auditable-mcp/0.3')
+        ledger = Ledger('tenant-a')
+        ledger.append(earlier, TS)
+        ledger.append(_event(1), TS)
+        assert verify_ledger(ledger.records()).issues == []
+        regressed = Ledger('tenant-a')
+        regressed.append(_event(1), TS)
+        regressed.append(earlier, TS)
+        issues = verify_ledger(regressed.records()).issues
+        assert [(issue.seq, issue.kind) for issue in issues] == [(1, 'schema-invalid')]
+        # end def
+
+    def test_a_record_sealed_under_0_3_carries_no_salted_hash(self) -> None:
+        """§4.3: the salted hash is a 0.4 field."""
+        salted = _event(
+            1,
+            spec_version='auditable-mcp/0.3',
+            action_context_salted_hash='JXkhjdB2aytlBM4xi-ESu61_KmG5g3fY0iCjcL1u-K0',
+        )
+        ledger = Ledger('tenant-a')
+        ledger.append(salted, TS)
+        assert [issue.kind for issue in verify_ledger(ledger.records()).issues] == ['schema-invalid']
+        # end def
+
     def test_a_refusal_sealed_before_an_attempt_with_its_id_accounts_for_a_value(self) -> None:
         """§7.2, §11.4: an attempt sealed after the refusal does not correlate to it."""
         stamp = {'key_id': 'k1', 'signature': 'c2ln'}
