@@ -12,9 +12,18 @@ record-hash preimage is deliberately *not* modeled — it is a local hash input,
 """
 
 from enum import StrEnum
-from typing import Annotated, Final, Literal, TypedDict
+from typing import Annotated, ClassVar, Final, Literal, TypedDict
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StrictBool,
+    ValidationError,
+    ValidationInfo,
+    model_validator,
+)
 
 from auditable_mcp.canonical import MAX_SAFE_INTEGER, has_lone_surrogate
 
@@ -117,6 +126,11 @@ class Status(StrEnum):
     # end class
 
 
+WIRE_CONTEXT_KEY: Final = 'wire'
+WIRE: Final = {WIRE_CONTEXT_KEY: True}
+"""The validation context of data received from a peer (`model_validate(data, context=WIRE)`)."""
+
+
 class WireModel(BaseModel):
     """Base for every wire contract: strict, closed, and immutable.
 
@@ -126,6 +140,31 @@ class WireModel(BaseModel):
     """
 
     model_config = ConfigDict(extra='forbid', strict=True, frozen=True)
+
+    # Members the schema admits as null. No a-MCP schema admits one; a model built on this base for
+    # another schema names its own.
+    _NULLABLE_MEMBERS: ClassVar[frozenset[str]] = frozenset()
+
+    @model_validator(mode='before')
+    @classmethod
+    def _absent_rather_than_null(cls, data: object, info: ValidationInfo) -> object:
+        """On wire input, refuse a member present as null that the schema does not admit as null.
+
+        An optional member on the wire is absent, never null: the schema refuses `null` for it, and so
+        does the TypeScript SDK, so reading a null as absent would let this SDK seal or verify an event
+        the other implementations call schema-invalid. Python callers building a model may still pass
+        `None` for an absent member; only validation with `WIRE` context applies this rule.
+        """
+        if isinstance(info.context, dict) and info.context.get(WIRE_CONTEXT_KEY) and isinstance(data, dict):
+            for name, field in cls.model_fields.items():
+                key = field.alias or name
+                if key in data and data[key] is None and key not in cls._NULLABLE_MEMBERS:
+                    raise ValueError(f'{key} is null; an absent member is omitted, not sent as null')
+                    # end if
+                # end for
+            # end if
+        return data
+        # end def
 
     @model_validator(mode='before')
     @classmethod
@@ -383,7 +422,7 @@ class AuditResultMeta(WireModel):
 def _first_error(model: type[BaseModel], event: object) -> str | None:
     """Return the first Pydantic validation message for `event` under `model`, or None if valid."""
     try:
-        model.model_validate(event)
+        model.model_validate(event, context=WIRE)
     except ValidationError as exc:
         error = exc.errors()[0]
         location = '.'.join(str(part) for part in error['loc'])
