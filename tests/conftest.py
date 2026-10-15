@@ -75,3 +75,10 @@ def capability_schema_validator() -> Draft202012Validator:
     schema = _load(_SCHEMA_DIR / 'audit-capability.schema.json')
     return Draft202012Validator(schema)
     # end def
+
+
+@pytest.fixture
+def salted_hash_vectors() -> list[dict[str, Any]]:
+    """Salted-hash vectors (§4.3): Disclosure -> salted hash, with RFC 9901 §4.2.2's own example."""
+    return _load(_VECTORS_DIR / 'salted-hash.json')
+    # end def

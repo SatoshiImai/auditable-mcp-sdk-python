@@ -8,7 +8,7 @@
     },
     "spec_version": {
       "type": "string",
-      "const": "auditable-mcp/0.3"
+      "const": "auditable-mcp/0.4"
     },
     "ts": {
       "type": "string",
@@ -82,6 +82,10 @@
     "action_context_hash": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "action_context_salted_hash": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
     },
     "signer_seq": {
       "type": "integer",

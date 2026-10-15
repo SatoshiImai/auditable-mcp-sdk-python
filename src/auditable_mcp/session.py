@@ -45,6 +45,7 @@ from auditable_mcp.models import (
     RejectResponse,
     TargetResource,
 )
+from auditable_mcp.salted_hash import disclosure_of, new_salt, salted_hash_of
 from auditable_mcp.transport import AmcpUsageError, AuditTransport
 
 
@@ -268,12 +269,16 @@ class AmcpSession:
         egress: bool,
         disclose: dict[str, object] | None = None,
         commit: object | None = None,
+        commit_salted: dict[str, object] | None = None,
     ) -> AuditedAction:
         """Create an audited action to use as `async with`.
 
         The effect axis (`mutates`, `egress`) is declared explicitly per operation (§4.2). Confidentiality
         is the tool's choice (§4.3): `disclose` records cleartext context, `commit` records a hash of
-        the exact input; either, both, or neither may be given.
+        the exact input, and `commit_salted` records a salted hash of the exact context - preferred when
+        the host belongs to another organization or the context is drawn from few possible values. Any
+        combination may be given. The Disclosure that opens the salted hash is on
+        `AuditedAction.disclosure`; the caller retains it if it may be asked to open the hash.
         """
         target = (
             target_resource
@@ -289,6 +294,7 @@ class AmcpSession:
             egress=egress,
             disclose=disclose,
             commit=commit,
+            commit_salted=commit_salted,
         )
         # end def
 
@@ -309,6 +315,7 @@ class AuditedAction:
         egress: bool,
         disclose: dict[str, object] | None,
         commit: object | None,
+        commit_salted: dict[str, object] | None = None,
     ) -> None:
         """Bind the action's immutable descriptors; the correlation id is shared by attempt and outcome."""
         self._session = session
@@ -319,8 +326,20 @@ class AuditedAction:
         self._egress = egress
         self._disclose = disclose
         self._commit_hash = hash_canonical(commit) if commit is not None else None
+        # One salt per operation: the attempt and the outcome carry the same salted hash (§4.3).
+        self._disclosure = disclosure_of(new_salt(), commit_salted) if commit_salted is not None else None
+        self._salted_hash = salted_hash_of(self._disclosure) if self._disclosure is not None else None
         # Populated on a successful __aenter__; None while unaccepted.
         self.accept: AcceptResponse | None = None
+        # end def
+
+    @property
+    def disclosure(self) -> str | None:
+        """The Disclosure that opens this operation's `action_context_salted_hash` (§4.3).
+
+        None when the action was not given `commit_salted`. The SDK keeps no copy.
+        """
+        return self._disclosure
         # end def
 
     async def _build(
@@ -340,6 +359,7 @@ class AuditedAction:
             reason=reason,
             action_context=self._disclose,
             action_context_hash=self._commit_hash,
+            action_context_salted_hash=self._salted_hash,
         )
         return await self._session._stamp(event.to_wire(), signer_seq)
         # end def

@@ -1,9 +1,32 @@
 [
   {
+    "name": "db-read-with-salted-hash",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "spec_version": "auditable-mcp/0.4",
+      "ts": "2026-07-15T00:00:09.000Z",
+      "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
+      "action_type": "db.read",
+      "mutates": false,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "action_context": {
+        "table": "customers"
+      },
+      "action_context_salted_hash": "JXkhjdB2aytlBM4xi-ESu61_KmG5g3fY0iCjcL1u-K0"
+    },
+    "canonical": "{\"action_context\":{\"table\":\"customers\"},\"action_context_salted_hash\":\"JXkhjdB2aytlBM4xi-ESu61_KmG5g3fY0iCjcL1u-K0\",\"action_type\":\"db.read\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000009\",\"mutates\":false,\"outcome\":\"attempted\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:09.000Z\"}",
+    "sha256": "c646139917b20f500e983ae06d1be4e742fb4454087b634e60cabca935605b9d"
+  },
+  {
     "name": "db-read-minimal",
     "event": {
       "id": "00000000-0000-4000-8000-000000000001",
-      "spec_version": "auditable-mcp/0.3",
+      "spec_version": "auditable-mcp/0.4",
       "ts": "2026-07-15T00:00:01.000Z",
       "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.read",
@@ -15,14 +38,14 @@
       },
       "outcome": "attempted"
     },
-    "canonical": "{\"action_type\":\"db.read\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000001\",\"mutates\":false,\"outcome\":\"attempted\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:01.000Z\"}",
-    "sha256": "b220a84cfe389c44e4cf4aaa68dc33355d75745968bfc9140c664c54fcc22976"
+    "canonical": "{\"action_type\":\"db.read\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000001\",\"mutates\":false,\"outcome\":\"attempted\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:01.000Z\"}",
+    "sha256": "2d4f186764eb790d6fd1d96fce2ca4224d997b84435c65be6857aff8b3fd6e15"
   },
   {
     "name": "db-query-with-trace-and-context",
     "event": {
       "id": "00000000-0000-4000-8000-000000000002",
-      "spec_version": "auditable-mcp/0.3",
+      "spec_version": "auditable-mcp/0.4",
       "ts": "2026-07-15T00:00:02.000Z",
       "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
@@ -43,14 +66,14 @@
       },
       "action_context_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
-    "canonical": "{\"action_context\":{\"dialect\":\"postgres\",\"tables_accessed\":[\"users\",\"payments\"]},\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"db.query\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000002\",\"mutates\":false,\"outcome\":\"success\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"database\",\"ref\":\"analytics-postgres\"},\"traceparent\":\"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\",\"ts\":\"2026-07-15T00:00:02.000Z\"}",
-    "sha256": "6fd3cfca5a039f069406377e3bd3b94e21c6cd50cf7be15d00fc906ca6bd11bb"
+    "canonical": "{\"action_context\":{\"dialect\":\"postgres\",\"tables_accessed\":[\"users\",\"payments\"]},\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"db.query\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000002\",\"mutates\":false,\"outcome\":\"success\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"database\",\"ref\":\"analytics-postgres\"},\"traceparent\":\"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\",\"ts\":\"2026-07-15T00:00:02.000Z\"}",
+    "sha256": "5aca3fcb9b38676ebb2dfc56553c1112406c58496fd30f41e814c6adfbd3e976"
   },
   {
     "name": "ext-l2-signed-unicode",
     "event": {
       "id": "00000000-0000-4000-8000-000000000003",
-      "spec_version": "auditable-mcp/0.3",
+      "spec_version": "auditable-mcp/0.4",
       "ts": "2026-07-15T00:00:03.000Z",
       "session_id": "0198f3a2-5c1e-7000-8000-00000000abc1",
       "action_type": "ext.stripe.refund_charge",
@@ -67,14 +90,14 @@
       "key_id": "tool-key-2026",
       "signature": "ZmFrZS1zaWduYXR1cmU"
     },
-    "canonical": "{\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"ext.stripe.refund_charge\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000003\",\"key_id\":\"tool-key-2026\",\"mutates\":true,\"outcome\":\"attempted\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc1\",\"signature\":\"ZmFrZS1zaWduYXR1cmU\",\"signer_seq\":42,\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"endpoint\",\"ref\":\"https://api.stripe.com/v1/refunds\",\"scope_hint\":\"clïent:c_1\"},\"ts\":\"2026-07-15T00:00:03.000Z\"}",
-    "sha256": "a19d650c8f9a83ffb972e89c9f6614af5b9bf059ff0b46bce118c3351aff41df"
+    "canonical": "{\"action_context_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"action_type\":\"ext.stripe.refund_charge\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000003\",\"key_id\":\"tool-key-2026\",\"mutates\":true,\"outcome\":\"attempted\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc1\",\"signature\":\"ZmFrZS1zaWduYXR1cmU\",\"signer_seq\":42,\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"endpoint\",\"ref\":\"https://api.stripe.com/v1/refunds\",\"scope_hint\":\"clïent:c_1\"},\"ts\":\"2026-07-15T00:00:03.000Z\"}",
+    "sha256": "444603c9b6939facf678181bed0c3c1b90055a369c3da8f7ebb47505952d2e47"
   },
   {
     "name": "secret-read",
     "event": {
       "id": "00000000-0000-4000-8000-000000000004",
-      "spec_version": "auditable-mcp/0.3",
+      "spec_version": "auditable-mcp/0.4",
       "ts": "2026-07-15T00:00:04.000Z",
       "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "secret.read",
@@ -87,14 +110,14 @@
       "outcome": "success",
       "action_context_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
     },
-    "canonical": "{\"action_context_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"action_type\":\"secret.read\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000004\",\"mutates\":false,\"outcome\":\"success\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"secret\",\"ref\":\"db/password\"},\"ts\":\"2026-07-15T00:00:04.000Z\"}",
-    "sha256": "ab55111125ca815adabcbed9c478750f0abf946049229c6e23b3e70a59967bc4"
+    "canonical": "{\"action_context_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"action_type\":\"secret.read\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000004\",\"mutates\":false,\"outcome\":\"success\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"secret\",\"ref\":\"db/password\"},\"ts\":\"2026-07-15T00:00:04.000Z\"}",
+    "sha256": "18a481df056e2d21720dddc57322e0426e699851ff0838fe64c23446cad47cfa"
   },
   {
     "name": "aborted-outcome-host-rejected",
     "event": {
       "id": "00000000-0000-4000-8000-000000000005",
-      "spec_version": "auditable-mcp/0.3",
+      "spec_version": "auditable-mcp/0.4",
       "ts": "2026-07-15T00:00:05.000Z",
       "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.write",
@@ -107,14 +130,14 @@
       "outcome": "aborted",
       "reason": "host-rejected"
     },
-    "canonical": "{\"action_type\":\"db.write\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000005\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-rejected\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:05.000Z\"}",
-    "sha256": "14b0687cefb4f50c8f03ab9530736682360d97182ffb04e8ebef36e08a2f2bc4"
+    "canonical": "{\"action_type\":\"db.write\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000005\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-rejected\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:05.000Z\"}",
+    "sha256": "f543067e854794c2c39a6c32c1411dce00877277f287d64a147732204a90e7fc"
   },
   {
     "name": "aborted-outcome-host-uncountersigned",
     "event": {
       "id": "00000000-0000-4000-8000-000000000006",
-      "spec_version": "auditable-mcp/0.3",
+      "spec_version": "auditable-mcp/0.4",
       "ts": "2026-07-15T00:00:06.000Z",
       "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.write",
@@ -127,14 +150,14 @@
       "outcome": "aborted",
       "reason": "host-uncountersigned"
     },
-    "canonical": "{\"action_type\":\"db.write\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000006\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-uncountersigned\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:06.000Z\"}",
-    "sha256": "26c40c8ef37ac1d5c169f19a31cda03eafe1ca5f0e2e8cdb2547ff94f506bd6f"
+    "canonical": "{\"action_type\":\"db.write\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000006\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-uncountersigned\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:06.000Z\"}",
+    "sha256": "686ca3b76c158db0649688ddba90e4625a7f25343be39540f797915eee37374c"
   },
   {
     "name": "aborted-outcome-host-signature-invalid",
     "event": {
       "id": "00000000-0000-4000-8000-000000000007",
-      "spec_version": "auditable-mcp/0.3",
+      "spec_version": "auditable-mcp/0.4",
       "ts": "2026-07-15T00:00:07.000Z",
       "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
       "action_type": "db.write",
@@ -147,7 +170,7 @@
       "outcome": "aborted",
       "reason": "host-signature-invalid"
     },
-    "canonical": "{\"action_type\":\"db.write\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000007\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-signature-invalid\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:07.000Z\"}",
-    "sha256": "16661d85a0add639405beaffa833b146ff1b501c8398f93a4ac6c9be8810ae75"
+    "canonical": "{\"action_type\":\"db.write\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000007\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-signature-invalid\",\"session_id\":\"0198f3a2-5c1e-7000-8000-00000000abc0\",\"spec_version\":\"auditable-mcp/0.4\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:07.000Z\"}",
+    "sha256": "5b42c98d455cd0d54323d8e01cb5557ac1408e3d21a059730a7224ab464025ad"
   }
 ]

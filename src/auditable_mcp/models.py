@@ -26,9 +26,10 @@ from pydantic import (
 )
 
 from auditable_mcp.canonical import MAX_SAFE_INTEGER, has_lone_surrogate
+from auditable_mcp.salted_hash import SALTED_HASH_PATTERN
 
 # The only spec version defined by this contract; a mismatch is a hard validation error.
-SPEC_VERSION: Literal['auditable-mcp/0.3'] = 'auditable-mcp/0.3'
+SPEC_VERSION: Literal['auditable-mcp/0.4'] = 'auditable-mcp/0.4'
 
 # The [SEP-2133] extension identifier: the key of the capability object in the `extensions` member of
 # ClientCapabilities (host) or ServerCapabilities (tool), and of this extension's `_meta` objects
@@ -193,17 +194,14 @@ class TargetResource(WireModel):
     # end class
 
 
-class AuditEvent(WireModel):
-    """One audit record describing one internal operation (§4).
+class _SessionAuditEvent(WireModel):
+    """The fields an event has carried since the audit session (0.3), with their presence rules.
 
-    The Level-2 fields (`signer_seq`, `key_id`, `signature`) are optional so a single model serves
-    both levels; the signing layer populates them. `reason` is pinned to the Tier-1 abort codes and
-    is required exactly when `outcome` is `aborted` (§7.6, §7.2).
+    `AuditEvent` adds the current `spec_version` and the fields of later versions; `SealedAuditEventV03`
+    adds 0.3's `spec_version`, so a record sealed under 0.3 is read in the shape it was sealed in.
     """
 
     id: str = Field(pattern=UUID_PATTERN)
-    # REQUIRED and hashed into the canonical bytes (§4): a defaulted-in version would fork the chain.
-    spec_version: Literal['auditable-mcp/0.3']
     ts: str = Field(pattern=DATETIME_PATTERN)
     # The audit session the host issued for the parent tools/call (§6.3), hashed and signed.
     session_id: str = Field(pattern=SESSION_ID_PATTERN)
@@ -222,7 +220,7 @@ class AuditEvent(WireModel):
     signature: str | None = Field(default=None, pattern=SIGNATURE_PATTERN)
 
     @model_validator(mode='after')
-    def _require_reason_when_aborted(self) -> 'AuditEvent':
+    def _require_reason_when_aborted(self) -> '_SessionAuditEvent':
         """An aborted outcome MUST carry a Tier-1 abort reason (§7.2)."""
         if self.outcome == Outcome.ABORTED and self.reason is None:
             raise ValueError('an aborted outcome requires a reason')
@@ -231,7 +229,7 @@ class AuditEvent(WireModel):
         # end def
 
     @model_validator(mode='after')
-    def _level_2_fields_travel_together(self) -> 'AuditEvent':
+    def _level_2_fields_travel_together(self) -> '_SessionAuditEvent':
         """`signer_seq`, `key_id`, and `signature` are present together or not at all (§4, `dependentRequired`)."""
         if len({self.signer_seq is None, self.key_id is None, self.signature is None}) != 1:
             raise ValueError('signer_seq, key_id, and signature must appear together or not at all')
@@ -242,11 +240,38 @@ class AuditEvent(WireModel):
     # end class
 
 
+class AuditEvent(_SessionAuditEvent):
+    """One audit record describing one internal operation (§4).
+
+    The Level-2 fields (`signer_seq`, `key_id`, `signature`) are optional so a single model serves
+    both levels; the signing layer populates them. `reason` is pinned to the Tier-1 abort codes and
+    is required exactly when `outcome` is `aborted` (§7.6, §7.2).
+    """
+
+    # REQUIRED and hashed into the canonical bytes (§4): a defaulted-in version would fork the chain.
+    spec_version: Literal['auditable-mcp/0.4']
+    action_context_salted_hash: str | None = Field(default=None, pattern=SALTED_HASH_PATTERN)
+    # end class
+
+
+class SealedAuditEventV03(_SessionAuditEvent):
+    """Verification view of an event sealed under v0.3 (`spec/schema/earlier/0.3`): no salted hash."""
+
+    spec_version: Literal['auditable-mcp/0.3']
+    # end class
+
+
 # Published spec versions a verifier accepts when reading a sealed ledger. Emission and ingest stay
 # pinned to the current SPEC_VERSION (AuditEvent, §6.1); a verifier reading a stored ledger must accept
 # records sealed under an earlier published version, since their bytes and hash chain are immutable
-# evidence. Keep this tuple in sync with the two sealed views below.
-KNOWN_SPEC_VERSIONS = ('auditable-mcp/0.1', 'auditable-mcp/0.1.1', 'auditable-mcp/0.2', 'auditable-mcp/0.3')
+# evidence. Keep this tuple in sync with the sealed views.
+KNOWN_SPEC_VERSIONS = (
+    'auditable-mcp/0.1',
+    'auditable-mcp/0.1.1',
+    'auditable-mcp/0.2',
+    'auditable-mcp/0.3',
+    'auditable-mcp/0.4',
+)
 _EARLIER_SPEC_VERSIONS = KNOWN_SPEC_VERSIONS[:-1]
 
 
@@ -466,6 +491,9 @@ def first_sealed_validation_error(event: object) -> str | None:
     version = event.get('spec_version') if isinstance(event, dict) else None
     if version == 'auditable-mcp/0.1':
         return _first_error(SealedAuditEventV01, event)
+        # end if
+    if version == 'auditable-mcp/0.3':
+        return _first_error(SealedAuditEventV03, event)
         # end if
     if version in _EARLIER_SPEC_VERSIONS:
         return _first_error(EarlierSealedAuditEvent, event)

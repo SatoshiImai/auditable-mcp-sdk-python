@@ -13,7 +13,7 @@
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "1970-01-01T00:16:41.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.query",
@@ -35,19 +35,19 @@
       "seq": 0,
       "host_ts": "2026-07-15T00:00:01.000Z",
       "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-      "record_hash": "c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d",
-      "host_signature": "ZG__7LYq6AGkVyGfEiGyb_jAdDq90WR6Gbw3pw7mV8A2VnGP5rQi3C4wztJwwrT7pgynO6xhPk2PIyQiUMyoBw",
+      "record_hash": "dbc0eab3b62ef15aa7c914805e0ca68431a989160f58c58d0a64fffc55a62c53",
+      "host_signature": "LcsqYNHxBD3WvrwuXQElZA2XIp6T02AxOG0FBbWiMDAhgtPHJ2vmIxKVLxrTbWN-1hnL_o8LzFHhZw25QKdEBw",
       "host_key_id": "host-key-2026",
       "log_id": "acme#2026-07-15",
       "countersignature_preimage": {
-        "canonical": "{\"host_ts\":\"2026-07-15T00:00:01.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"record_hash\":\"c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d\",\"seq\":0}",
-        "sha256": "223e086b7216e90ca89d863fd408275ad5be94b282f33874c9c0b5e45f4e244b"
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:01.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"record_hash\":\"dbc0eab3b62ef15aa7c914805e0ca68431a989160f58c58d0a64fffc55a62c53\",\"seq\":0}",
+        "sha256": "beb39fe0d2111422e5717011597ebeafac1c3cf33cc79c813f75cde46619b3d9"
       }
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "1970-01-01T00:16:41.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.query",
@@ -68,20 +68,20 @@
       },
       "seq": 1,
       "host_ts": "2026-07-15T00:00:02.000Z",
-      "previous_hash": "c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d",
-      "record_hash": "b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e",
-      "host_signature": "PfleRPM-2Fyz1koFaJC_627j9ZoGzNUqG6tThB32-xL4VDUMJA4YQeGy5OMRaBoh9svNbbQYYifpsed_ENjwBA",
+      "previous_hash": "dbc0eab3b62ef15aa7c914805e0ca68431a989160f58c58d0a64fffc55a62c53",
+      "record_hash": "a33e238507bf2462cb79c63504af272c047c40ef189c302cd4ff4b6a7b0032f9",
+      "host_signature": "25xkpwGyFFsCqgxJTO8NK0tBU94qnwj1hDZV-HKiueKVB9TamQSX78mDkGdSSv3X49D8LnGXaKY80i6gmBFwBA",
       "host_key_id": "host-key-2026",
       "log_id": "acme#2026-07-15",
       "countersignature_preimage": {
-        "canonical": "{\"host_ts\":\"2026-07-15T00:00:02.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"c28d84b13d3366dac84bb3803a83757800f376a09b65b3b42f0c2591cae4650d\",\"record_hash\":\"b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e\",\"seq\":1}",
-        "sha256": "cc6da4325170b8394b1a208e56994e56d14eb5e36aa6d03f58a5f1c721a809d8"
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:02.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"dbc0eab3b62ef15aa7c914805e0ca68431a989160f58c58d0a64fffc55a62c53\",\"record_hash\":\"a33e238507bf2462cb79c63504af272c047c40ef189c302cd4ff4b6a7b0032f9\",\"seq\":1}",
+        "sha256": "2bcc8b75b22a96e8f0e4d654372e001f2ebdafcae65dfb593ca8521f4015d2d5"
       }
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "1970-01-01T00:16:42.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "ext.geocode",
@@ -98,20 +98,20 @@
       },
       "seq": 2,
       "host_ts": "2026-07-15T00:00:03.000Z",
-      "previous_hash": "b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e",
-      "record_hash": "7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2",
-      "host_signature": "izWZfTRV-8lUzh06-Ve9I7UEl_ic8Uw1nZpCpwUm6j1fokMkvmw8nY4_Wh_rQnL2V5HGa8ahlbCKoyQFAuMYCQ",
+      "previous_hash": "a33e238507bf2462cb79c63504af272c047c40ef189c302cd4ff4b6a7b0032f9",
+      "record_hash": "99b64df06dc40e947891a20e95180cd3e9270a52bb57b62dcb441b3bae62c0f2",
+      "host_signature": "aQMGPq2JBxev7MGR1AsHbYZ3Yt_U6DBc5VhRP1JTPKLXl9l0KaJF_4UynV8-9I8bWLL19TfxGlJ09OyzFMG7BA",
       "host_key_id": "host-key-2026",
       "log_id": "acme#2026-07-15",
       "countersignature_preimage": {
-        "canonical": "{\"host_ts\":\"2026-07-15T00:00:03.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"b4267cc6d853086d180dc10abc89d2f3a3af7adbe3903d4225906a2d598e429e\",\"record_hash\":\"7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2\",\"seq\":2}",
-        "sha256": "87b18ad9b78200100dda8d00bc9ea66032b8ab2af3a33a68c344bffb8fffa218"
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:03.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"a33e238507bf2462cb79c63504af272c047c40ef189c302cd4ff4b6a7b0032f9\",\"record_hash\":\"99b64df06dc40e947891a20e95180cd3e9270a52bb57b62dcb441b3bae62c0f2\",\"seq\":2}",
+        "sha256": "dc59db5bafb88e82703dd3573a7412a9e4d2554d496697d52af3bf2a80907944"
       }
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "1970-01-01T00:16:42.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "ext.geocode",
@@ -128,20 +128,20 @@
       },
       "seq": 3,
       "host_ts": "2026-07-15T00:00:04.000Z",
-      "previous_hash": "7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2",
-      "record_hash": "6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa",
-      "host_signature": "kFBicP-r_PoZ8HA-6p-sbZ1s8ff5bb88xfowecrrdewyksity_QvL8zFZyso5y9lmK5JnPuqa4XR7FhXP23ODg",
+      "previous_hash": "99b64df06dc40e947891a20e95180cd3e9270a52bb57b62dcb441b3bae62c0f2",
+      "record_hash": "22ad7d2353883c4067322906be7d77b8f7c4fe635ccc22b671aa1acf97836f16",
+      "host_signature": "2TZrvf8_wo9AROjCGM5qLixurYV41gNMfgDhwvfe2qL8AFBPmP9aWhZp6BKUP9ow8uA8IebJwHWo6rOUe_nSDg",
       "host_key_id": "host-key-2026",
       "log_id": "acme#2026-07-15",
       "countersignature_preimage": {
-        "canonical": "{\"host_ts\":\"2026-07-15T00:00:04.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"7734ecdc2df6ef7c799a4f53b7140b9e2004caaab5d516fdd01ff0b948b38fe2\",\"record_hash\":\"6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa\",\"seq\":3}",
-        "sha256": "30507e005b4c7688f188547ad4b4636920585818eb4a4805dda526dba61defa0"
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:04.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"99b64df06dc40e947891a20e95180cd3e9270a52bb57b62dcb441b3bae62c0f2\",\"record_hash\":\"22ad7d2353883c4067322906be7d77b8f7c4fe635ccc22b671aa1acf97836f16\",\"seq\":3}",
+        "sha256": "c56a6e8faa47c6a6c5250b86875dd3ff9bf1bbdaa33a632a672c3bc0472caaff"
       }
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000003",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "1970-01-01T00:16:43.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.write",
@@ -155,20 +155,20 @@
       },
       "seq": 4,
       "host_ts": "2026-07-15T00:00:05.000Z",
-      "previous_hash": "6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa",
-      "record_hash": "f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558",
-      "host_signature": "YkqJq4_AVxRz-plElVwRG09jcJkceaqAhYqWZgnUviRV7nM2chnO_7Q6OOcQp-2AlAOkAY4i6-CowM1VrualCQ",
+      "previous_hash": "22ad7d2353883c4067322906be7d77b8f7c4fe635ccc22b671aa1acf97836f16",
+      "record_hash": "a78d33a97d832fc865023f587b59de0b93f70ae4ff3d1cdb9420ed1cdc72a7ec",
+      "host_signature": "_BUMseAZHe7YG9LcZnYX4i6iZ2zICzOeZS6HDcXivZH2aNmnRi2wzACvQ5KrwWmEMSr8NyKAT3w2eqtqFn1SCg",
       "host_key_id": "host-key-2026",
       "log_id": "acme#2026-07-15",
       "countersignature_preimage": {
-        "canonical": "{\"host_ts\":\"2026-07-15T00:00:05.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"6428e084d2a12f53eaa76300351019e45ab23b1917cfa54e69eba3d4d59ab4fa\",\"record_hash\":\"f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558\",\"seq\":4}",
-        "sha256": "ec128e083f824ceccc56ad84177e131d0d244446edd3eecad46c818dac9ec84b"
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:05.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"22ad7d2353883c4067322906be7d77b8f7c4fe635ccc22b671aa1acf97836f16\",\"record_hash\":\"a78d33a97d832fc865023f587b59de0b93f70ae4ff3d1cdb9420ed1cdc72a7ec\",\"seq\":4}",
+        "sha256": "51df8a71bd85e1ba86c4a1044b99c949486144f3244792bff516093c245502c6"
       }
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000003",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "1970-01-01T00:16:43.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
         "action_type": "db.write",
@@ -182,16 +182,16 @@
       },
       "seq": 5,
       "host_ts": "2026-07-15T00:00:06.000Z",
-      "previous_hash": "f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558",
-      "record_hash": "b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c",
-      "host_signature": "IBDfc7p8GbsydmEHGnSd2vUBBbSyDj1byOYiJ28UvgD48vuoZsnRuq9FlNzgNgCgsV9fextGzBSx0YHiexWcDQ",
+      "previous_hash": "a78d33a97d832fc865023f587b59de0b93f70ae4ff3d1cdb9420ed1cdc72a7ec",
+      "record_hash": "451143ab2b78a92350d53a3725ccb460ff2512ac8cefd86af21f1d4dd894f3b4",
+      "host_signature": "_ZBmW_4zbCdzUuE2RITnJzf8mrrgBs2P6D83R0tO-mqIJfnmKfVq33D5ciMA076xSrayOGr7ASHLcScnnJF9Bg",
       "host_key_id": "host-key-2026",
       "log_id": "acme#2026-07-15",
       "countersignature_preimage": {
-        "canonical": "{\"host_ts\":\"2026-07-15T00:00:06.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"f5abab5f9e5e20a7915a99b10f4ce50e3cc567e39f074d745e85659c431af558\",\"record_hash\":\"b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c\",\"seq\":5}",
-        "sha256": "b25bd6a81c05651e02068e3da0d9b5eca3676c55cfc48d2ebac02611318cccae"
+        "canonical": "{\"host_ts\":\"2026-07-15T00:00:06.000Z\",\"log_id\":\"acme#2026-07-15\",\"previous_hash\":\"a78d33a97d832fc865023f587b59de0b93f70ae4ff3d1cdb9420ed1cdc72a7ec\",\"record_hash\":\"451143ab2b78a92350d53a3725ccb460ff2512ac8cefd86af21f1d4dd894f3b4\",\"seq\":5}",
+        "sha256": "e9385ffc338b02918f1245b3cd7488c101b4522cc21d8c99a21fcbab6fb09f06"
       }
     }
   ],
-  "digest": "b518c79e5b8c2c8af600e09330b48ed6169aa0e7fee54d3286894c2ce039c23c"
+  "digest": "451143ab2b78a92350d53a3725ccb460ff2512ac8cefd86af21f1d4dd894f3b4"
 }

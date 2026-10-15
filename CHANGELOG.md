@@ -1,7 +1,25 @@
 # Changelog
 
 Changes to the Auditable MCP Python SDK. The SDK package version is independent of the
-`spec_version` it implements (currently `auditable-mcp/0.3`); this file tracks the package.
+`spec_version` it implements (currently `auditable-mcp/0.4`); this file tracks the package.
+
+## 0.4.0 - unreleased
+
+Tracking spec `auditable-mcp/0.4`. The TypeScript SDK's 0.4.0 is the same change.
+
+### Breaking changes
+
+- **Emission moves to `auditable-mcp/0.4`**, so every golden digest changes. A record sealed under 0.3
+  still verifies, read as `SealedAuditEventV03` against the vendored 0.3 schema.
+
+### Added
+
+- **`action_context_salted_hash` (§4.3).** `AmcpSession.action(..., commit_salted=...)` takes the exact
+  internal context; the action seals its salted hash on the attempt and the outcome, and exposes the
+  Disclosure that opens it as `AuditedAction.disclosure`, which the SDK does not keep. `new_salt`,
+  `disclosure_of`, `salted_hash_of`, and `open_salted_hash` are exported for a tool or auditor that works
+  with Disclosures directly. The construction is RFC 9901 §4.2.2 and §4.2.3; the vendored
+  `salted-hash.json` vectors include RFC 9901's own example.
 
 ## 0.3.1 - 2026-10-16
 
