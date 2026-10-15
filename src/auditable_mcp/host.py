@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
+from enum import StrEnum
 from typing import Final, Protocol
 from uuid import uuid4
 
@@ -101,6 +102,26 @@ class Countersigner(Protocol):
         """Return the base64url detached signature, without padding, over `payload`."""
         ...
 
+    # end class
+
+
+class OutcomeDisposition(StrEnum):
+    """What became of an outcome the host was handed (§7.2), as `AuditHost.record_outcome` reports it.
+
+    An outcome has no response on the wire (§6); a binding that acknowledges delivery - a transport of
+    its own, not MCP's - reads this to decide whether the outcome reached the ledger.
+
+    - `sealed`: sealed into the chain as its operation's terminal record, or as a refusal (§7.2).
+    - `repeat`: byte-identical to an outcome already sealed; nothing more to do (§8.3).
+    - `refused`: not sealed, and recorded in the anomaly set under the kind for its condition (§6).
+    - `not-recorded`: not sealed and not decided, because the chain tail is in doubt or persistence
+      failed (§10.8). Sending it again is safe.
+    """
+
+    SEALED = 'sealed'
+    REPEAT = 'repeat'
+    REFUSED = 'refused'
+    NOT_RECORDED = 'not-recorded'
     # end class
 
 
@@ -219,6 +240,7 @@ class AuditHost:
         countersigner: Countersigner | None = None,
         log_id: str | None = None,
         clock: Clock | None = None,
+        open_sessions: Iterable[str] = (),
     ) -> AuditHost:
         """Build a host that continues `partition`'s persisted chain.
 
@@ -233,6 +255,14 @@ class AuditHost:
         outcome of the same session and id after it is recorded `unresolved-attempt`, as closing its
         session would have (§6.3), and its session is not open. Anomalies are held in memory only; an
         integrator who needs them across restarts persists `anomalies()`.
+
+        `open_sessions` is for a host whose sessions are not a-MCP's calls - a binding that defines a
+        session outliving the host process, as Auditable A2A does for a Task. Each session it names is
+        restored as open from its sealed records: the attempts it accepted, the outcome sealed per
+        operation, and per key the `signer_seq` values decided and the highest received (§7.4). Its
+        unresolved attempts are not flagged, since its session has not ended. Decisions the host reached
+        without sealing - a refused attempt - are not in the ledger and are not restored. Empty,
+        `resume` ends every session (§6.3).
         """
         host = cls(
             partition,
@@ -253,17 +283,22 @@ class AuditHost:
                 host._issued.add(session_id)
                 # end if
             # end for
-        host._flag_unresolved(records)
+        open_ = frozenset(open_sessions)
+        for session_id in open_:
+            host._issued.add(session_id)
+            host._sessions[session_id] = _restored_session(session_id, records)
+            # end for
+        host._flag_unresolved(records, open_)
         return host
         # end def
 
-    def _flag_unresolved(self, records: list[SealedRecord]) -> None:
-        """Record every persisted attempt left without a terminal outcome as unresolved (§6.3)."""
+    def _flag_unresolved(self, records: list[SealedRecord], open_: frozenset[str]) -> None:
+        """Record every persisted attempt left without a terminal outcome as unresolved (§6.3), outside `open_`."""
         open_attempts: dict[tuple[str, str], str] = {}
         for record in records:
             event = record.event
             session_id = event.get(fields.SESSION_ID)
-            if not isinstance(session_id, str) or event.get(fields.SPEC_VERSION) != SPEC_VERSION:
+            if not isinstance(session_id, str) or event.get(fields.SPEC_VERSION) != SPEC_VERSION or session_id in open_:
                 continue
                 # end if
             event_id = _event_id(event)
@@ -674,18 +709,34 @@ class AuditHost:
 
         Held under the same lock as `handle_attempt`: an outcome seals into the same chain (§8.3).
         """
+        await self.record_outcome(event, session_id=session_id)
+        # end def
+
+    async def record_outcome(self, event: dict[str, object], *, session_id: str | None = None) -> OutcomeDisposition:
+        """`handle_outcome`, reporting what became of the outcome (§7.2).
+
+        For a binding that acknowledges an outcome's delivery, which MCP's do not: only `not-recorded`
+        leaves the outcome undecided, so only it calls for the outcome to be sent again.
+
+        Args:
+            event: The outcome event as received.
+            session_id: The session the binding received it on, when the binding names one.
+
+        Returns:
+            What became of the outcome.
+        """
         async with self._lock:
             if not await self._settle_tail():
                 _logger.error(
                     'could not settle the tail; outcome id=%s lost (completeness gap, §10.8)', _event_id(event)
                 )
-                return
+                return OutcomeDisposition.NOT_RECORDED
                 # end if
-            await self._handle_outcome(event, session_id)
+            return await self._handle_outcome(event, session_id)
             # end async with
         # end def
 
-    async def _handle_outcome(self, event: dict[str, object], expected_session: str | None) -> None:
+    async def _handle_outcome(self, event: dict[str, object], expected_session: str | None) -> OutcomeDisposition:
         """The outcome path proper. The caller holds the lock.
 
         Validated in the order an attempt is - structure, session, signature, uniqueness, sequence -
@@ -693,28 +744,28 @@ class AuditHost:
         """
         admitted = self._admit(event, expected_session, attempt=False)
         if isinstance(admitted, str):
-            return
+            return OutcomeDisposition.REFUSED
             # end if
         session = admitted
         event_id = _event_id(event)
         outcome = event.get(fields.OUTCOME)
         if await self._verify_signature(event, session) is not None:
-            return
+            return OutcomeDisposition.REFUSED
             # end if
         # §7.2, §8.3: an operation has one terminal record. A byte-identical repeat does nothing; a
         # different outcome for an operation that already has one is a replay.
         digest = _digest(event)
         sealed_outcome = session.outcomes.get(event_id)
         if sealed_outcome == digest or digest in self._sealed_digests:
-            return
+            return OutcomeDisposition.REPEAT
             # end if
         if sealed_outcome is not None:
             self._decide(event, session)
             self._flag(event_id, reasons.REPLAY_DETECTED, 'a second, different outcome for one operation (§7.2)')
-            return
+            return OutcomeDisposition.REFUSED
             # end if
         if self._check_replay(event, session) is not None:
-            return
+            return OutcomeDisposition.REFUSED
             # end if
         correlated = event_id in session.accepted
         # §7.2: a success or failed outcome with no accepted attempt is not sealed. Both never-accepted
@@ -723,7 +774,7 @@ class AuditHost:
             sub = 'for a rejected id' if event_id in self._rejected_ids else 'without an accepted attempt'
             self._decide(event, session)
             self._flag(event_id, reasons.ORPHANED_OUTCOME, f'outcome={outcome} {sub}')
-            return
+            return OutcomeDisposition.REFUSED
             # end if
         # A correlated outcome is its operation's terminal record; an aborted outcome of an attempt the
         # host did not accept is the record of an operation the tool declined to perform (§7.2, §10.4).
@@ -733,16 +784,45 @@ class AuditHost:
             # gap (§10.8), not a ledger integrity anomaly, and `internal-error` is not a Tier-1 anomaly
             # kind (§7.6): log it instead of flagging the anomaly set with an out-of-space code.
             _logger.error('could not persist outcome id=%s; outcome lost (completeness gap, §10.8)', event_id)
-            return
+            return OutcomeDisposition.NOT_RECORDED
             # end if
         self._decide(event, session)
         session.outcomes[event_id] = digest
         if correlated:
             session.resolved.add(event_id)
             # end if
+        return OutcomeDisposition.SEALED
         # end def
 
     # end class
+
+
+def _restored_session(session_id: str, records: list[SealedRecord]) -> _Session:
+    """A session's state rebuilt from the records sealed in it, for a session that outlives a restart."""
+    session = _Session()
+    for record in records:
+        event = record.event
+        if event.get(fields.SESSION_ID) != session_id or event.get(fields.SPEC_VERSION) != SPEC_VERSION:
+            continue
+            # end if
+        key_id = event.get(fields.KEY_ID)
+        signer_seq = _signer_seq(event)
+        if isinstance(key_id, str) and signer_seq is not None:
+            session.decided.setdefault(key_id, set()).add(signer_seq)
+            session.received[key_id] = max(session.received.get(key_id, signer_seq), signer_seq)
+            # end if
+        event_id = _event_id(event)
+        if event.get(fields.OUTCOME) == Outcome.ATTEMPTED:
+            session.accepted.add(event_id)
+        else:
+            session.outcomes[event_id] = _digest(event)
+            if event_id in session.accepted:
+                session.resolved.add(event_id)
+                # end if
+            # end if
+        # end for
+    return session
+    # end def
 
 
 def _accept_of(record: SealedRecord) -> AttemptResponse:

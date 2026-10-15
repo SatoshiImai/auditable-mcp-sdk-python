@@ -20,6 +20,16 @@ Tracking spec `auditable-mcp/0.4`. The TypeScript SDK's 0.4.0 is the same change
   `disclosure_of`, `salted_hash_of`, and `open_salted_hash` are exported for a tool or auditor that works
   with Disclosures directly. The construction is RFC 9901 §4.2.2 and §4.2.3; the vendored
   `salted-hash.json` vectors include RFC 9901's own example.
+- **Two host surfaces for a binding whose sessions are not a-MCP's calls**, such as Auditable A2A,
+  where a session lasts as long as a Task. Neither changes how a host serving a-MCP's own bindings
+  behaves.
+  - `AuditHost.resume(..., open_sessions=...)` restores the named sessions as open from their sealed
+    records - accepted attempts, the outcome sealed per operation, and per key the `signer_seq` values
+    decided and the highest received - instead of ending them (§6.3). Empty, every session ends, as
+    before.
+  - `AuditHost.record_outcome` is `handle_outcome` reporting what became of the outcome
+    (`OutcomeDisposition`: `sealed`, `repeat`, `refused`, `not-recorded`), for a binding that
+    acknowledges an outcome's delivery. `handle_outcome` and the `AuditEndpoint` protocol are unchanged.
 
 ## 0.3.1 - 2026-10-16
 

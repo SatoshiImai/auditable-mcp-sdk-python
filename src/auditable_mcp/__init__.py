@@ -29,7 +29,7 @@ from auditable_mcp.clock import Clock, SystemClock, now_iso
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
 from auditable_mcp.degradation import Posture, UnnegotiatedCallError, transport_for
 from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash, countersignature_payload
-from auditable_mcp.host import AuditHost, Countersigner, IntegrityAnomaly, SignatureVerifier
+from auditable_mcp.host import AuditHost, Countersigner, IntegrityAnomaly, OutcomeDisposition, SignatureVerifier
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2 import (
     REVOKED_MEMBER,
@@ -247,4 +247,5 @@ __all__ = [
     'open_salted_hash',
     'salted_hash_of',
     'WIRE',
+    'OutcomeDisposition',
 ]
