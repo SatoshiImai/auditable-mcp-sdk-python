@@ -5,9 +5,13 @@ binding acknowledges (`record_outcome`). Neither changes how a host serving a-MC
 The same cases as the TypeScript SDK's `host-lifetime.test.ts`.
 """
 
+import pytest
+
 from auditable_mcp.host import AuditHost, OutcomeDisposition
+from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import SealedRecord
 from auditable_mcp.models import SPEC_VERSION, AuditCapability, Countersign, Level
+from auditable_mcp.session import AmcpSession, SessionNumbering
 from auditable_mcp.storage.memory import InMemoryLedgerRepository
 from auditable_mcp.storage.repository import RepositoryError
 
@@ -38,6 +42,19 @@ class _OkVerifier:
     async def verify(self, event: dict[str, object]) -> str | None:
         """Always verify."""
         return None
+        # end def
+
+    # end class
+
+
+class _StubSigner:
+    """A Level-2 signer that stamps the fields without real cryptography (the host's verifier accepts all)."""
+
+    key_id = 'k1'
+
+    async def sign(self, event: dict[str, object], signer_seq: int) -> dict[str, object]:
+        """Stamp the Level-2 fields."""
+        return {**event, 'key_id': self.key_id, 'signer_seq': signer_seq, 'signature': 'stub'}
         # end def
 
     # end class
@@ -196,6 +213,32 @@ class TestResumeWithOpenSessions:
         assert [anomaly.kind for anomaly in host.anomalies()] == ['unresolved-attempt']
         refused = await host.handle_attempt(_signed(_attempt(_id(3)), 3), session_id=SESSION)
         assert refused.status == 'reject'
+        # end def
+
+    # end class
+
+
+class TestSessionNumberingStart:
+    """`SessionNumbering(start)` resumes a session at a given value (§7.4)."""
+
+    async def test_numbers_the_next_signed_event_from_the_start(self) -> None:
+        host = AuditHost('tenant-a', _L2, clock=_Clock(), verifier=_OkVerifier())
+        host.open_session(SESSION)
+        transport = InProcessTransport(host)
+        transport.numbering = SessionNumbering(3)  # type: ignore[attr-defined]
+        session = AmcpSession(transport, SESSION, signer=_StubSigner())
+        async with session.action('db.read', {'kind': 'table', 'ref': 'customers'}, mutates=False, egress=False):
+            pass
+            # end async with
+        assert [record.event['signer_seq'] for record in host.records()] == [3, 4]
+        # end def
+
+    def test_refuses_a_start_that_is_not_a_non_negative_integer(self) -> None:
+        for start in (-1, 1.5, True):
+            with pytest.raises(ValueError, match='§7.4'):
+                SessionNumbering(start)  # type: ignore[arg-type]
+                # end with
+            # end for
         # end def
 
     # end class

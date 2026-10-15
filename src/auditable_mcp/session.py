@@ -125,10 +125,22 @@ class SessionNumbering:
     order they were numbered. Every `AmcpSession` serving the same audit session must share one instance.
     """
 
-    def __init__(self) -> None:
-        """Start the session's sequence at 0."""
+    def __init__(self, start: int = 0) -> None:
+        """Start the session's sequence at `start`, 0 for a session that is new (§7.4).
+
+        A session begins at 0. A binding whose session outlives the tool's process - Auditable A2A, where
+        a session lasts as long as a Task - resumes it at the value after the last one the tool used,
+        which only the tool's own records can tell it; starting again at 0 would reuse values the host
+        has decided, which it refuses as `replay-detected` (§7.4).
+
+        Raises:
+            ValueError: `start` is not a non-negative integer.
+        """
+        if isinstance(start, bool) or not isinstance(start, int) or start < 0:
+            raise ValueError(f'a session numbering starts at a non-negative integer, not {start!r} (§7.4)')
+            # end if
         self.lock = anyio.Lock()
-        self.next_signer_seq = 0
+        self.next_signer_seq = start
         # end def
 
     # end class
