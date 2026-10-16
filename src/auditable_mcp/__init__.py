@@ -65,6 +65,7 @@ from auditable_mcp.models import (
     EXTENSION_ID,
     KNOWN_SPEC_VERSIONS,
     SPEC_VERSION,
+    WIRE,
     AbortReason,
     AcceptResponse,
     AttemptResponse,
@@ -119,7 +120,7 @@ from auditable_mcp.verify import (
     verify_ledger,
 )
 
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 __all__ = [
     'tool_key_pkcs8',
@@ -233,4 +234,5 @@ __all__ = [
     'CountersignatureRegistryVerifier',
     'Countersigner',
     'CountersignatureVerifier',
+    'WIRE',
 ]

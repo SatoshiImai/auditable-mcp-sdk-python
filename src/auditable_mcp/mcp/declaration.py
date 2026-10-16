@@ -20,7 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from auditable_mcp.models import EXTENSION_ID, AuditCapability
+from auditable_mcp.models import EXTENSION_ID, WIRE, AuditCapability
 
 # The capabilities member [SEP-2133] reserves for extension settings objects (§6.1).
 EXTENSIONS_MEMBER = 'extensions'
@@ -86,7 +86,7 @@ def capability_of(capabilities: object | None) -> AuditCapability | None:
         declared = declared.model_dump(mode='json')
         # end if
     try:
-        return AuditCapability.model_validate(declared)
+        return AuditCapability.model_validate(declared, context=WIRE)
     except ValidationError:
         return None
         # end try

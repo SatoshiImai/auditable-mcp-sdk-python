@@ -23,6 +23,7 @@ _TS_INDEX: Final = Path(__file__).resolve().parents[2] / 'auditable-mcp-sdk-ts' 
 _ONLY_IN_PYTHON: Final[dict[str, str]] = {
     '__version__': 'package metadata; the TypeScript port reads it from package.json',
     'WireModel': 'the pydantic base the wire models share; TypeScript validates with Zod schemas',
+    'WIRE': 'the pydantic validation context of peer input; a Zod schema refuses null without one',
     'auditable_tool': 'a decorator; the TypeScript counterpart is `withAudit`',
     'bound_session': 'a contextvar binding; TypeScript passes the session explicitly',
     'current_session': 'reads the contextvar `bound_session` sets',

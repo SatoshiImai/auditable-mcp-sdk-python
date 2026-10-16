@@ -15,11 +15,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from auditable_mcp.models import (
     SPEC_VERSION,
+    WIRE,
+    AcceptResponse,
     AttemptResponse,
     AuditCapability,
     AuditRequestMeta,
@@ -130,7 +133,7 @@ _CAP_SAMPLES: list[tuple[str, dict[str, Any], bool]] = [
 def _capability_pydantic_ok(capability: dict[str, Any]) -> bool:
     """Return True if the capability validates against the strict AuditCapability model."""
     try:
-        AuditCapability.model_validate(capability)
+        AuditCapability.model_validate(capability, context=WIRE)
         return True
     except ValidationError:
         return False
@@ -184,7 +187,7 @@ def test_response_acceptance_matches_the_vendored_schema() -> None:
     for name, response, expected in _RESPONSE_SAMPLES:
         schema_ok = not list(validator.iter_errors(response))
         try:
-            adapter.validate_python(response)
+            adapter.validate_python(response, context=WIRE)
             pydantic_ok = True
         except ValidationError:
             pydantic_ok = False
@@ -261,7 +264,7 @@ def test_meta_objects_match_the_vendored_schemas() -> None:
         validator = Draft202012Validator(json.loads((_SCHEMA_DIR / file).read_text(encoding='utf-8')))
         schema_ok = not list(validator.iter_errors(value))
         try:
-            model.model_validate(value)
+            model.model_validate(value, context=WIRE)
             pydantic_ok = True
         except ValidationError:
             pydantic_ok = False
@@ -343,4 +346,42 @@ def test_earlier_versions_match_their_own_vendored_schemas() -> None:
         assert schema_ok == expected, f'schema disagreed on {version}:{name} (got {schema_ok})'
         assert pydantic_ok == expected, f'pydantic disagreed on {version}:{name} (got {pydantic_ok})'
         # end for
+    # end def
+
+
+_OPTIONAL_EVENT_MEMBERS = (
+    'traceparent',
+    'reason',
+    'action_context',
+    'action_context_hash',
+    'signer_seq',
+    'key_id',
+    'signature',
+)
+
+
+@pytest.mark.parametrize('member', _OPTIONAL_EVENT_MEMBERS)
+def test_an_optional_member_sent_as_null_is_refused_as_the_schema_refuses_it(
+    event_schema_validator: Any, member: str
+) -> None:
+    """An optional member on the wire is absent, never null; null is not read as absent."""
+    event = {**_VALID_BASE, member: None}
+    assert not event_schema_validator.is_valid(event)
+    assert first_validation_error(event) is not None
+    # end def
+
+
+def test_a_null_member_in_an_attempt_response_is_refused_as_the_schema_refuses_it() -> None:
+    """A response with a null countersignature member is unreadable, so it is a failure to record (§6)."""
+    response = {
+        'status': 'accept',
+        'seq': 0,
+        'record_hash': '0' * 64,
+        'host_ts': '2026-07-15T00:00:01.000Z',
+        'previous_hash': '0' * 64,
+        'host_signature': None,
+    }
+    with pytest.raises(ValidationError):
+        AcceptResponse.model_validate(response, context=WIRE)
+        # end with
     # end def

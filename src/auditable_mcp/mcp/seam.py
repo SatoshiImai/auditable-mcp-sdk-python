@@ -74,6 +74,7 @@ from auditable_mcp.capability import NegotiationOutcome, NegotiationResult, nego
 from auditable_mcp.mcp.declaration import capability_of, declare_into
 from auditable_mcp.models import (
     EXTENSION_ID,
+    WIRE,
     AcceptResponse,
     AttemptResponse,
     AuditCapability,
@@ -392,7 +393,7 @@ def _decision(frame: JSONRPCResponse | JSONRPCError, what: str) -> AttemptRespon
 def _read_response(value: object, what: str) -> AttemptResponse:
     """Validate one Attempt Response, or read it as a failure to record."""
     try:
-        return _RESPONSE_ADAPTER.validate_python(value)
+        return _RESPONSE_ADAPTER.validate_python(value, context=WIRE)
     except ValidationError as error:
         logger.warning('%s answered with an unreadable Attempt Response: %s', what, error)
         return unavailable()
@@ -1080,7 +1081,7 @@ class McpAuditTransport(_FrameSeam):
         """
         meta = _meta_of(frame.params).get(EXTENSION_ID)
         try:
-            request_meta = AuditRequestMeta.model_validate(meta)
+            request_meta = AuditRequestMeta.model_validate(meta, context=WIRE)
         except ValidationError:
             request_meta = None
             # end try
@@ -1165,7 +1166,7 @@ class McpAuditTransport(_FrameSeam):
         modern = _is_modern(params)
         meta = _meta_of(params)
         try:
-            issued: str | None = AuditRequestMeta.model_validate(meta.get(EXTENSION_ID)).session_id
+            issued: str | None = AuditRequestMeta.model_validate(meta.get(EXTENSION_ID), context=WIRE).session_id
         except ValidationError:
             issued = None
             # end try
