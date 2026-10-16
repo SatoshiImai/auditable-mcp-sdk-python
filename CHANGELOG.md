@@ -11,6 +11,9 @@ Tracking spec `auditable-mcp/0.4`. The TypeScript SDK's 0.4.0 is the same change
 
 - **Emission moves to `auditable-mcp/0.4`**, so every golden digest changes. A record sealed under 0.3
   still verifies, read as `SealedAuditEventV03` against the vendored 0.3 schema.
+- **`ts` and `host_ts` require seconds** (an RFC 3339 date-time, §4, §7.1). `DATETIME_PATTERN` no longer
+  accepts a time of hours and minutes only. A record sealed under an earlier version is still read against
+  that version's pattern (`EARLIER_DATETIME_PATTERN`), which made seconds optional.
 
 ### Added
 
@@ -39,7 +42,7 @@ Tracking spec `auditable-mcp/0.4`. The TypeScript SDK's 0.4.0 is the same change
     attempt's decision, which the ledger does not hold, across its restart (§7.4).
   - A `CountersignatureVerifier` may answer `'unavailable'` when it could not check a countersignature for a
     reason that is not the signature's - the host's key set could not be fetched; the tool aborts the attempt
-    `host-unavailable`, a failure to record, rather than `host-signature-invalid`.
+    `host-unavailable`, a failure to record (§7.2), rather than `host-signature-invalid`.
 
 ## 0.3.1 - 2026-10-16
 

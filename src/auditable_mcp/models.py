@@ -59,7 +59,14 @@ EARLIER_UUID_PATTERN = (
     r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}'
     r'|00000000-0000-0000-0000-000000000000)$'
 )
+# An RFC 3339 date-time in UTC with a `Z` suffix, seconds required (§4, §7.1).
 DATETIME_PATTERN = (
+    r'^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29'
+    r'|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)'
+    r'|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?Z$'
+)
+# Before v0.4 the schema made seconds optional.
+EARLIER_DATETIME_PATTERN = (
     r'^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29'
     r'|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)'
     r'|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$'
@@ -255,8 +262,12 @@ class AuditEvent(_SessionAuditEvent):
 
 
 class SealedAuditEventV03(_SessionAuditEvent):
-    """Verification view of an event sealed under v0.3 (`spec/schema/earlier/0.3`): no salted hash."""
+    """Verification view of an event sealed under v0.3 (`spec/schema/earlier/0.3`).
 
+    It carries no salted hash, and its `ts` may omit seconds.
+    """
+
+    ts: str = Field(pattern=EARLIER_DATETIME_PATTERN)
     spec_version: Literal['auditable-mcp/0.3']
     # end class
 
@@ -290,7 +301,7 @@ class SealedAuditEventV01(WireModel):
 
     id: str = Field(pattern=EARLIER_UUID_PATTERN)
     spec_version: Literal['auditable-mcp/0.1']
-    ts: str = Field(pattern=DATETIME_PATTERN)
+    ts: str = Field(pattern=EARLIER_DATETIME_PATTERN)
     call_id: str = Field(min_length=1)
     traceparent: str | None = None
     action_type: str = Field(min_length=1)
@@ -317,7 +328,7 @@ class EarlierSealedAuditEvent(WireModel):
 
     id: str = Field(pattern=EARLIER_UUID_PATTERN)
     spec_version: Literal['auditable-mcp/0.1.1', 'auditable-mcp/0.2']
-    ts: str = Field(pattern=DATETIME_PATTERN)
+    ts: str = Field(pattern=EARLIER_DATETIME_PATTERN)
     call_id: str = Field(min_length=1)
     traceparent: str | None = None
     action_type: str = Field(min_length=1)
