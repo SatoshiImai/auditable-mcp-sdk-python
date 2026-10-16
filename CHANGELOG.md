@@ -3,6 +3,18 @@
 Changes to the Auditable MCP Python SDK. The SDK package version is independent of the
 `spec_version` it implements (currently `auditable-mcp/0.3`); this file tracks the package.
 
+## 0.3.1 - 2026-10-16
+
+Tracking spec `auditable-mcp/0.3`, unchanged.
+
+### Fixed
+
+- **A member received as null is refused, as the schema and the TypeScript SDK refuse it.** pydantic read
+  an explicit `null` for an optional member as absent, so the host sealed, and the verifier passed, an
+  event the JSON Schema calls invalid - a ledger the TypeScript verifier then reported `schema-invalid`.
+  Validation of peer input now runs with the `WIRE` context, under which a null member is refused;
+  building a model in Python with `None` for an absent member is unchanged.
+
 ## 0.3.0
 
 Breaking, tracking spec `auditable-mcp/0.3`.
