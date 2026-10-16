@@ -1,7 +1,48 @@
 # Changelog
 
 Changes to the Auditable MCP Python SDK. The SDK package version is independent of the
-`spec_version` it implements (currently `auditable-mcp/0.3`); this file tracks the package.
+`spec_version` it implements (currently `auditable-mcp/0.4`); this file tracks the package.
+
+## 0.4.0 - 2026-10-16
+
+Tracking spec `auditable-mcp/0.4`. The TypeScript SDK's 0.4.0 is the same change.
+
+### Breaking changes
+
+- **Emission moves to `auditable-mcp/0.4`**, so every golden digest changes. A record sealed under 0.3
+  still verifies, read as `SealedAuditEventV03` against the vendored 0.3 schema.
+- **`ts` and `host_ts` require seconds** (an RFC 3339 date-time, §4, §7.1). `DATETIME_PATTERN` no longer
+  accepts a time of hours and minutes only. A record sealed under an earlier version is still read against
+  that version's pattern (`EARLIER_DATETIME_PATTERN`), which made seconds optional.
+
+### Added
+
+- **`action_context_salted_hash` (§4.3).** `AmcpSession.action(..., commit_salted=...)` takes the exact
+  internal context; the action seals its salted hash on the attempt and the outcome, and exposes the
+  Disclosure that opens it as `AuditedAction.disclosure`, which the SDK does not keep. `new_salt`,
+  `disclosure_of`, `salted_hash_of`, and `open_salted_hash` are exported for a tool or auditor that works
+  with Disclosures directly. The construction is RFC 9901 §4.2.2 and §4.2.3; the vendored
+  `salted-hash.json` vectors include RFC 9901's own example.
+- **Two host surfaces for a binding whose sessions are not a-MCP's calls**, such as Auditable A2A,
+  where a session lasts as long as a Task. Neither changes how a host serving a-MCP's own bindings
+  behaves.
+  - `AuditHost.resume(..., open_sessions=...)` restores the named sessions as open from their sealed
+    records - accepted attempts, the outcome sealed per operation, and per key the `signer_seq` values
+    decided and the highest received - instead of ending them (§6.3). Empty, every session ends, as
+    before.
+  - `AuditHost.record_outcome` is `handle_outcome` reporting what became of the outcome
+    (`OutcomeDisposition`: `sealed`, `repeat`, `refused`, `not-recorded`), for a binding that
+    acknowledges an outcome's delivery. `handle_outcome` and the `AuditEndpoint` protocol are unchanged.
+  - `SessionNumbering(start)` resumes a session's `signer_seq` at `start` (default 0, as before), for a
+    tool that resumes a session after its own restart from the last value its records show (§7.4).
+  - `AuditedAction.id` names the event id the operation's attempt and outcome share, so a tool can write
+    ahead, in its own records, what it is about to do with an accepted attempt.
+  - `AuditHost.signer_tracker(session_id)` exports an open session's `signer_seq` tracker, and `resume`'s
+    `open_sessions` takes it back (`OpenSession(session_id, signers)`), for a host that keeps a refused
+    attempt's decision, which the ledger does not hold, across its restart (§7.4).
+  - A `CountersignatureVerifier` may answer `'unavailable'` when it could not check a countersignature for a
+    reason that is not the signature's - the host's key set could not be fetched; the tool aborts the attempt
+    `host-unavailable`, a failure to record (§7.2), rather than `host-signature-invalid`.
 
 ## 0.3.1 - 2026-10-16
 

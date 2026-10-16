@@ -4,7 +4,7 @@ This package is a pure protocol machine (canonicalization, hashing, signing, sta
 It carries no storage backend and no tool business logic; persistence is the integrator's concern,
 supplied through the adapter interfaces this SDK defines.
 
-The `spec_version` implemented is `auditable-mcp/0.3`. The MCP wire binding lives in the
+The `spec_version` implemented is `auditable-mcp/0.4`. The MCP wire binding lives in the
 `auditable_mcp.mcp` subpackage, which is the one part that needs the official `mcp` package.
 """
 
@@ -29,7 +29,15 @@ from auditable_mcp.clock import Clock, SystemClock, now_iso
 from auditable_mcp.decorator import auditable_tool, bound_session, current_session
 from auditable_mcp.degradation import Posture, UnnegotiatedCallError, transport_for
 from auditable_mcp.hashing import GENESIS_HASH, compute_record_hash, countersignature_payload
-from auditable_mcp.host import AuditHost, Countersigner, IntegrityAnomaly, SignatureVerifier
+from auditable_mcp.host import (
+    AuditHost,
+    Countersigner,
+    IntegrityAnomaly,
+    OpenSession,
+    OutcomeDisposition,
+    SignatureVerifier,
+    SignerTracker,
+)
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2 import (
     REVOKED_MEMBER,
@@ -86,6 +94,13 @@ from auditable_mcp.models import (
     first_sealed_validation_error,
     first_validation_error,
 )
+from auditable_mcp.salted_hash import (
+    SALTED_HASH_PATTERN,
+    disclosure_of,
+    new_salt,
+    open_salted_hash,
+    salted_hash_of,
+)
 from auditable_mcp.session import (
     AmcpAbortedError,
     AmcpSession,
@@ -120,7 +135,7 @@ from auditable_mcp.verify import (
     verify_ledger,
 )
 
-__version__ = '0.3.1'
+__version__ = '0.4.0'
 
 __all__ = [
     'tool_key_pkcs8',
@@ -234,5 +249,13 @@ __all__ = [
     'CountersignatureRegistryVerifier',
     'Countersigner',
     'CountersignatureVerifier',
+    'SALTED_HASH_PATTERN',
+    'disclosure_of',
+    'new_salt',
+    'open_salted_hash',
+    'salted_hash_of',
     'WIRE',
+    'OutcomeDisposition',
+    'OpenSession',
+    'SignerTracker',
 ]

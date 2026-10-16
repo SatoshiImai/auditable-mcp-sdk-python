@@ -26,7 +26,7 @@ import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import TracebackType
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import uuid4
 
 import anyio
@@ -45,6 +45,7 @@ from auditable_mcp.models import (
     RejectResponse,
     TargetResource,
 )
+from auditable_mcp.salted_hash import disclosure_of, new_salt, salted_hash_of
 from auditable_mcp.transport import AmcpUsageError, AuditTransport
 
 
@@ -75,8 +76,13 @@ class CountersignatureVerifier(Protocol):
     False: the countersignature is not established either way (§10.9).
     """
 
-    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool:
-        """Return True if the signature verifies against the registered host key."""
+    async def verify(self, host_key_id: str, signature: str, payload: bytes) -> bool | Literal['unavailable']:
+        """Return True if the signature verifies against the registered host key, False if it does not.
+
+        Return `'unavailable'` when it could not be checked for a reason that is not the signature's - the
+        host's key set could not be fetched - which the tool reads as a failure to record (§7.2), not as a failed
+        countersignature.
+        """
         ...
 
     # end class
@@ -124,10 +130,22 @@ class SessionNumbering:
     order they were numbered. Every `AmcpSession` serving the same audit session must share one instance.
     """
 
-    def __init__(self) -> None:
-        """Start the session's sequence at 0."""
+    def __init__(self, start: int = 0) -> None:
+        """Start the session's sequence at `start`, 0 for a session that is new (§7.4).
+
+        A session begins at 0. A binding whose session outlives the tool's process - Auditable A2A, where
+        a session lasts as long as a Task - resumes it at the value after the last one the tool used,
+        which only the tool's own records can tell it; starting again at 0 would reuse values the host
+        has decided, which it refuses as `replay-detected` (§7.4).
+
+        Raises:
+            ValueError: `start` is not a non-negative integer.
+        """
+        if isinstance(start, bool) or not isinstance(start, int) or start < 0:
+            raise ValueError(f'a session numbering starts at a non-negative integer, not {start!r} (§7.4)')
+            # end if
         self.lock = anyio.Lock()
-        self.next_signer_seq = 0
+        self.next_signer_seq = start
         # end def
 
     # end class
@@ -268,12 +286,16 @@ class AmcpSession:
         egress: bool,
         disclose: dict[str, object] | None = None,
         commit: object | None = None,
+        commit_salted: dict[str, object] | None = None,
     ) -> AuditedAction:
         """Create an audited action to use as `async with`.
 
         The effect axis (`mutates`, `egress`) is declared explicitly per operation (§4.2). Confidentiality
         is the tool's choice (§4.3): `disclose` records cleartext context, `commit` records a hash of
-        the exact input; either, both, or neither may be given.
+        the exact input, and `commit_salted` records a salted hash of the exact context - preferred when
+        the host belongs to another organization or the context is drawn from few possible values. Any
+        combination may be given. The Disclosure that opens the salted hash is on
+        `AuditedAction.disclosure`; the caller retains it if it may be asked to open the hash.
         """
         target = (
             target_resource
@@ -289,6 +311,7 @@ class AmcpSession:
             egress=egress,
             disclose=disclose,
             commit=commit,
+            commit_salted=commit_salted,
         )
         # end def
 
@@ -309,6 +332,7 @@ class AuditedAction:
         egress: bool,
         disclose: dict[str, object] | None,
         commit: object | None,
+        commit_salted: dict[str, object] | None = None,
     ) -> None:
         """Bind the action's immutable descriptors; the correlation id is shared by attempt and outcome."""
         self._session = session
@@ -319,8 +343,26 @@ class AuditedAction:
         self._egress = egress
         self._disclose = disclose
         self._commit_hash = hash_canonical(commit) if commit is not None else None
+        # One salt per operation: the attempt and the outcome carry the same salted hash (§4.3).
+        self._disclosure = disclosure_of(new_salt(), commit_salted) if commit_salted is not None else None
+        self._salted_hash = salted_hash_of(self._disclosure) if self._disclosure is not None else None
         # Populated on a successful __aenter__; None while unaccepted.
         self.accept: AcceptResponse | None = None
+        # end def
+
+    @property
+    def id(self) -> str:
+        """The event id the operation's attempt and outcome share (§7.1)."""
+        return self._id
+        # end def
+
+    @property
+    def disclosure(self) -> str | None:
+        """The Disclosure that opens this operation's `action_context_salted_hash` (§4.3).
+
+        None when the action was not given `commit_salted`. The SDK keeps no copy.
+        """
+        return self._disclosure
         # end def
 
     async def _build(
@@ -340,6 +382,7 @@ class AuditedAction:
             reason=reason,
             action_context=self._disclose,
             action_context_hash=self._commit_hash,
+            action_context_salted_hash=self._salted_hash,
         )
         return await self._session._stamp(event.to_wire(), signer_seq)
         # end def
@@ -419,7 +462,7 @@ class AuditedAction:
         if response.host_signature is not None and self._session._countersignature_verifier is not None:
             # The model admits the triple only together (§7.1), so a missing member here is a partial
             # countersignature that could not be checked, which is what `host-signature-invalid` names.
-            verified = False
+            verified: bool | Literal['unavailable'] = False
             if response.host_key_id is not None and response.log_id is not None:
                 payload = countersignature_payload(
                     response.seq, response.host_ts, response.log_id, response.previous_hash, response.record_hash
@@ -427,6 +470,10 @@ class AuditedAction:
                 verified = await self._session._countersignature_verifier.verify(
                     response.host_key_id, response.host_signature, payload
                 )
+                # end if
+            if verified == 'unavailable':
+                await self._emit_aborted_best_effort(reasons.HOST_UNAVAILABLE)
+                raise AmcpAbortedError(self._action_type, self._target.ref, reasons.HOST_UNAVAILABLE)
                 # end if
             if not verified:
                 await self._emit_aborted_best_effort(reasons.HOST_SIGNATURE_INVALID)

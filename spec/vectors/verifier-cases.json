@@ -24,7 +24,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -39,15 +39,15 @@
           "seq": 0,
           "host_ts": "2026-07-15T00:00:30.000Z",
           "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "host_signature": "d3RuehLVx6u1xbB6zvsb2vj5bM9rlvR01pgoyqy_DBmhbDhK1JpDBzH1o_Tv4Kbos6Zi5CZe-53-YeXdmqtpDQ",
+          "record_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "host_signature": "b0vbKXdU9mXxz51KPe9E4LUgKaCcq6OtEGWQ1hwNbLfnVaOsf1FXacUVC34LzFt6kWyp39iInya_Py6SDl1vBQ",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         },
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -61,9 +61,9 @@
           },
           "seq": 1,
           "host_ts": "2026-07-15T00:00:31.000Z",
-          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec",
-          "host_signature": "Gw38ID8zJRvMBbrTxJIZ0nXcrvItr3GBBBfCDOQJGTt6urvBr7wt2D3562lBRbDrUtmf9LnjaLTutinuMSV3Bw",
+          "previous_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "record_hash": "0956d457310b5c6f43dd5275b6e5f97a580b0cf891a0b84abed4ef6c45319870",
+          "host_signature": "RPB1XnfHpP-9zjDljHgkhxEslekKzCPr4AXQEpLaxQJ2XsZbi6ZdU4wCn8heCcO23_IsQVHw50KdwQSQ2l0UDw",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         }
@@ -85,7 +85,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -100,15 +100,15 @@
           "seq": 0,
           "host_ts": "2026-07-15T00:00:30.000Z",
           "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "host_signature": "d3RuehLVx6u1xbB6zvsb2vj5bM9rlvR01pgoyqy_DBmhbDhK1JpDBzH1o_Tv4Kbos6Zi5CZe-53-YeXdmqtpDQ",
+          "record_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "host_signature": "b0vbKXdU9mXxz51KPe9E4LUgKaCcq6OtEGWQ1hwNbLfnVaOsf1FXacUVC34LzFt6kWyp39iInya_Py6SDl1vBQ",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         },
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -122,8 +122,8 @@
           },
           "seq": 1,
           "host_ts": "2026-07-15T00:00:31.000Z",
-          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec"
+          "previous_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "record_hash": "0956d457310b5c6f43dd5275b6e5f97a580b0cf891a0b84abed4ef6c45319870"
         }
       ],
       "options": {
@@ -139,7 +139,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -154,15 +154,15 @@
           "seq": 0,
           "host_ts": "2026-07-15T00:00:30.000Z",
           "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "host_signature": "d3RuehLVx6u1xbB6zvsb2vj5bM9rlvR01pgoyqy_DBmhbDhK1JpDBzH1o_Tv4Kbos6Zi5CZe-53-YeXdmqtpDQ",
+          "record_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "host_signature": "b0vbKXdU9mXxz51KPe9E4LUgKaCcq6OtEGWQ1hwNbLfnVaOsf1FXacUVC34LzFt6kWyp39iInya_Py6SDl1vBQ",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         },
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -176,8 +176,8 @@
           },
           "seq": 1,
           "host_ts": "2026-07-15T00:00:31.000Z",
-          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec"
+          "previous_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "record_hash": "0956d457310b5c6f43dd5275b6e5f97a580b0cf891a0b84abed4ef6c45319870"
         }
       ],
       "options": {},
@@ -189,7 +189,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -204,15 +204,15 @@
           "seq": 0,
           "host_ts": "2026-07-15T00:00:30.000Z",
           "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "host_signature": "b2RiisMXma-lC6_OtW3QUpUl_nFpM2xGX5v-FMS2VHwTu66BHW_klfYp856oosSXgoadDgqhzeOdTnxl_VaJCQ",
+          "record_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "host_signature": "1JezRngYOrh2Ifrk5ep4FOo37P_B9amhpasZ6E2SS4ua2ksbyZUKPewJVXKE-QgJ9ZPHP_uqzOdaTkJcav9BDw",
           "host_key_id": "other-host-key-2026",
           "log_id": "acme#2026-07-15"
         },
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -226,9 +226,9 @@
           },
           "seq": 1,
           "host_ts": "2026-07-15T00:00:31.000Z",
-          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec",
-          "host_signature": "KrciLii4pT--I1grg0u0-BOuCHo0o0OmtufzCbGXZiDjaHLrQB1y2wd9Qd46sNcgW9qZ_aiUk0yTbOsM6nYDAA",
+          "previous_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "record_hash": "0956d457310b5c6f43dd5275b6e5f97a580b0cf891a0b84abed4ef6c45319870",
+          "host_signature": "0EzehoZNsS9QR_qA23qB8ad91doJQsuQEoz9HEVc4eZ88uC76YddxXEYklf-iOFsF-WI9wp-hz3A29gNwpGGDg",
           "host_key_id": "other-host-key-2026",
           "log_id": "acme#2026-07-15"
         }
@@ -252,7 +252,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -267,12 +267,12 @@
           "seq": 0,
           "host_ts": "2026-07-15T00:00:30.000Z",
           "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-          "record_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73"
+          "record_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48"
         },
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001e",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -286,8 +286,8 @@
           },
           "seq": 1,
           "host_ts": "2026-07-15T00:00:31.000Z",
-          "previous_hash": "ee10d856daf6ef7b7a3d7fa214f13ec9ea43391224de73d445e24c287b866c73",
-          "record_hash": "0a7c2efdd4f567ffc73c70d394f72e56b1bb73673f0172deb992b6b6392001ec"
+          "previous_hash": "1202499b0791f21d7e60c828d032813124379a822bf24549f3286e235511ce48",
+          "record_hash": "0956d457310b5c6f43dd5275b6e5f97a580b0cf891a0b84abed4ef6c45319870"
         }
       ],
       "options": {
@@ -309,7 +309,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001f",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -324,15 +324,15 @@
           "seq": 0,
           "host_ts": "2026-07-15T00:00:30.000Z",
           "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-          "record_hash": "90a78c7c958e152f856445ef0085b96f7628592f7c078515238360c89cbbba69",
-          "host_signature": "hE3sTeAy1MA6BdoFaT2TM-1GfLJrok5yg6fVhPES_RDAhGL9FctieDNGCeHYn1qiiSD3U_9sbU9C6gtorP9iDQ",
+          "record_hash": "2a2c4533f0431e9336c286c6f83bc0a7e6cae0c33b8b41013379d97c985787cd",
+          "host_signature": "LPb6VBbEGqDQcxa9FsNu_Z9yrvP5MTJ76q0Dm9vjNgtByh0t8U0HttvH3dGJW8-BQ0_CqrO7kDT5FqRlaoGXCg",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         },
         {
           "event": {
             "id": "00000000-0000-4000-8000-00000000001f",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -346,9 +346,9 @@
           },
           "seq": 1,
           "host_ts": "2026-07-15T00:00:31.000Z",
-          "previous_hash": "90a78c7c958e152f856445ef0085b96f7628592f7c078515238360c89cbbba69",
-          "record_hash": "3e41e4a0a18aa03eef5873bc5c21c6ac1ae43d91db4d1f91a80c3ff43976d8eb",
-          "host_signature": "NdzQhqR6Fvo6tjJrXfc4qrlCAhzUrryRrCDD460CegD4MQ-pCrB_tA84fzprIryTFQ1GBbEUmR1oq3RjQeJ7Cg",
+          "previous_hash": "2a2c4533f0431e9336c286c6f83bc0a7e6cae0c33b8b41013379d97c985787cd",
+          "record_hash": "cb33d44274e008b3c6bb9923743dfdcaf1465c63dba1b1da260786aafa18a9a7",
+          "host_signature": "Zav20-376u21RS6HpxkgdCGfOfTWLppalkmfSEHVggv4LxNmJeInrrGeNBzPOohFN2D3K5VZktbrI1N7aHzqDg",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         }
@@ -364,7 +364,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-000000000020",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",
@@ -379,8 +379,8 @@
           "seq": 0,
           "host_ts": "2026-07-15T00:00:30.000Z",
           "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-          "record_hash": "e6197e296aa2ab17f64b74b378aab37f17ef96567353e510ebe079ac0f801af2",
-          "host_signature": "9B9u1uOS6ulkYU5nbmd5r9f9pn0tSvxRNoYUHHUnbNZRsi2HZKhiRI1ysHZKRcRvqHXKoWt7XdGnO37XRCviAA",
+          "record_hash": "45c662dddad7afa658ad3fce87b1da681c2cc5f7764ce96d5af08f1fd3173d23",
+          "host_signature": "U3BrMnmsvMr-O1hEDFoNL-t-K_v0G9RuYmuo7iFb5ZYEuod6-Zsghps7tA9GkbblK4qIJR_65IoAb15aSvU2Bw",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         },
@@ -401,9 +401,9 @@
           },
           "seq": 1,
           "host_ts": "2026-07-15T00:00:31.000Z",
-          "previous_hash": "e6197e296aa2ab17f64b74b378aab37f17ef96567353e510ebe079ac0f801af2",
-          "record_hash": "4e3312a2d45a1897db2b350a6971aa9d7394356b56c65e5235656aed6fc874de",
-          "host_signature": "5uEb6KuxQo-BXctd3tjJEbS5iiDa4s8CQqwkLoBFEQffgs22CQtGyMuIX0Pm_zKsOcv-P4fWBgN-dM64phQ9Cg",
+          "previous_hash": "45c662dddad7afa658ad3fce87b1da681c2cc5f7764ce96d5af08f1fd3173d23",
+          "record_hash": "7e1544c86bbf1a747e233b9b561d5077b87a28d55b5a35f061a87fdddd37116b",
+          "host_signature": "oA-uh50S_fx7Ket9WRp1g2hHXLFAVR12mf7945w7jr_z6PlOu3b_CCMAjnCG_44BBK-I-JHZdyp6SCX09gE_Bw",
           "host_key_id": "host-key-2026",
           "log_id": "acme#2026-07-15"
         }
@@ -419,7 +419,7 @@
         {
           "event": {
             "id": "00000000-0000-4000-8000-000000000022",
-            "spec_version": "auditable-mcp/0.3",
+            "spec_version": "auditable-mcp/0.4",
             "ts": "2026-07-15T00:00:30.000Z",
             "session_id": "0198f3a2-5c1e-7000-8000-00000000abc0",
             "action_type": "db.write",

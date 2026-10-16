@@ -1,0 +1,35 @@
+[
+  {
+    "name": "rfc9901-4.2.2-example",
+    "disclosure": "WyJsa2x4RjVqTVlsR1RQVW92TU5JdkNBIiwgIlVTIl0",
+    "decoded": [
+      "lklxF5jMYlGTPUovMNIvCA",
+      "US"
+    ],
+    "salted_hash": "pFndjkZ_VCzmyTa6UjlZo3dh-ko8aIKQc9DlGzhaVYo"
+  },
+  {
+    "name": "context",
+    "disclosure": "WyJfMjZiYzRMVC1hYzZxMktJNmNCVzV3Iix7InRhYmxlIjoiY3VzdG9tZXJzIiwicm93cyI6M31d",
+    "decoded": [
+      "_26bc4LT-ac6q2KI6cBW5w",
+      {
+        "table": "customers",
+        "rows": 3
+      }
+    ],
+    "salted_hash": "JXkhjdB2aytlBM4xi-ESu61_KmG5g3fY0iCjcL1u-K0"
+  },
+  {
+    "name": "context-non-ascii",
+    "disclosure": "WyJlbHVWNU9nM2dTTklJOEVZbnN4QV9BIix7ImN1c3RvbWVyIjoi5bGx55Sw5aSq6YOOIiwiYW1vdW50IjoxMjAwMDAwfV0",
+    "decoded": [
+      "eluV5Og3gSNII8EYnsxA_A",
+      {
+        "customer": "山田太郎",
+        "amount": 1200000
+      }
+    ],
+    "salted_hash": "wjgXnk4F7g2gExYEtpg0GnRFOIUSiqNkxp_tVNuy2ws"
+  }
+]

@@ -21,7 +21,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000014",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:20.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -34,7 +34,7 @@
         "outcome": "attempted",
         "key_id": "tool-key-2026",
         "signer_seq": 0,
-        "signature": "RQnTE6W5FJMuV7CsNoKH5tSCNxKJZvGglmLPEJ_Cb4W4dLd5nCej9bAIHfJIDsOq09pYasMyA_n6L-QQ-CJGAQ"
+        "signature": "GT-XM38MQaoY8o3qvpg0kA7K6BDUEpkZTC5nqsT7pjPM1kqKmz3JzudtA3pU17mTpRcX8dwDWWozuTZkUzvQAQ"
       }
     },
     {
@@ -48,7 +48,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000015",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:21.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -61,7 +61,7 @@
         "outcome": "attempted",
         "key_id": "tool-key-2026",
         "signer_seq": 1,
-        "signature": "9CAcfIoaGbQXM5Y9Xh1Re4OiyIQLd4KIzmk8oVvNjWMQOxCMuK6eM4P6ceH2GJ6tLlsB8lIt7LHR9NZ2YKRHAQ"
+        "signature": "_nsuwUzZEKC8YvyGzd2QKZE0UiyohK-WZCa7iKrPXZXZKUYwSMlEBxtuxrrhdK2S5ecfXHXqDHvoCljdpHTPCg"
       }
     },
     {
@@ -75,7 +75,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000014",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:20.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -88,7 +88,7 @@
         "outcome": "attempted",
         "key_id": "tool-key-2026",
         "signer_seq": 0,
-        "signature": "RQnTE6W5FJMuV7CsNoKH5tSCNxKJZvGglmLPEJ_Cb4W4dLd5nCej9bAIHfJIDsOq09pYasMyA_n6L-QQ-CJGAQ"
+        "signature": "GT-XM38MQaoY8o3qvpg0kA7K6BDUEpkZTC5nqsT7pjPM1kqKmz3JzudtA3pU17mTpRcX8dwDWWozuTZkUzvQAQ"
       }
     },
     {
@@ -102,7 +102,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000015",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:21.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -115,7 +115,7 @@
         "outcome": "attempted",
         "key_id": "tool-key-2026",
         "signer_seq": 1,
-        "signature": "9CAcfIoaGbQXM5Y9Xh1Re4OiyIQLd4KIzmk8oVvNjWMQOxCMuK6eM4P6ceH2GJ6tLlsB8lIt7LHR9NZ2YKRHAQ"
+        "signature": "_nsuwUzZEKC8YvyGzd2QKZE0UiyohK-WZCa7iKrPXZXZKUYwSMlEBxtuxrrhdK2S5ecfXHXqDHvoCljdpHTPCg"
       }
     },
     {
@@ -131,7 +131,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000016",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:22.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -144,7 +144,7 @@
         "outcome": "attempted",
         "key_id": "tool-key-2026",
         "signer_seq": 1,
-        "signature": "MT6u6HioqcpISlhrttbR6yXRdj1xCuZCbqoGK32EP9iB85iO_6OvwOAJMGMg7hZq6uSSo_l4VFFNxQJLL4KIAw"
+        "signature": "xKHMJ8CxvL461LuGAqlTOIs3jNvtOTaiL9vn0WvT_4WGvqwQeHbvcZrJ6e4pXoPAtpyExzxTV9hIT3PBseg_Aw"
       }
     },
     {
@@ -157,7 +157,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000015",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:21.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -170,7 +170,7 @@
         "outcome": "success",
         "key_id": "tool-key-2026",
         "signer_seq": 2,
-        "signature": "sMulC98fYjBysZgnkBDC1vfcQ9ozS6eEAr6Ncgcm1wljpp1_oeV6DjdXRbdvhhqIN7EhnJBW9A5AlmkH2_5bBQ"
+        "signature": "oIO68eImQ40f00PSZUHdn-At5obFBf_Oo71wc2zwFkQSEqOqCz5fmzaLll6bOBij_ak5gBxFMkT27zTkRdNJAg"
       }
     },
     {
@@ -185,7 +185,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000015",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:21.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -198,7 +198,7 @@
         "outcome": "failed",
         "key_id": "tool-key-2026",
         "signer_seq": 3,
-        "signature": "vEP684UCQyL7SFxBEqNE3QClnKdOysP07klfXkOxkE6l77uCJVfyEZf3Bn7ipu3lyaRGeoGL9M9ae7y-clDsAg"
+        "signature": "K-mVRLxYFHE-uJhjZgXK8B-pt8PG_ia3M7X0aWtCbl07NE0jAhbRCJixcxV2a4daLgVF_edh4yvt-4bNsS0uAg"
       }
     },
     {
@@ -211,7 +211,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000015",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:21.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -224,7 +224,7 @@
         "outcome": "success",
         "key_id": "tool-key-2026",
         "signer_seq": 2,
-        "signature": "sMulC98fYjBysZgnkBDC1vfcQ9ozS6eEAr6Ncgcm1wljpp1_oeV6DjdXRbdvhhqIN7EhnJBW9A5AlmkH2_5bBQ"
+        "signature": "oIO68eImQ40f00PSZUHdn-At5obFBf_Oo71wc2zwFkQSEqOqCz5fmzaLll6bOBij_ak5gBxFMkT27zTkRdNJAg"
       }
     },
     {
@@ -237,7 +237,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000014",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:20.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -250,7 +250,7 @@
         "outcome": "success",
         "key_id": "tool-key-2026",
         "signer_seq": 4,
-        "signature": "jq4Y84YVQR-P23DTR4NznqVhgPN_0MPa4XJcMBYa9lmL2q89FDYiW3xms7dul9NAl_AJVPrLxPK7CkeCTGDXBQ"
+        "signature": "XXeCzJ9ahYOHkdRKYmgWuA3zOftJA-IxjYRwEN2Ko8T92s3TPNE7QtQb38JRTFhqbkrJZLbth48Du3Ai3cnmBQ"
       }
     },
     {
@@ -264,7 +264,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000017",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:23.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -277,7 +277,7 @@
         "outcome": "attempted",
         "key_id": "tool-key-2026",
         "signer_seq": 5,
-        "signature": "-UjW-ZwgzeE3hZQMzPfhVMg6Mm57b41DGStn-2DoP0SCFGpYvIZdx6gzSHwS9_j1kcTbsrPFoE2UuXuhexgbAA"
+        "signature": "cyJrtWNC0EaIGTjTMkyBsxMpIXhMH50sZjf4Mh7Jr-9-zRzr-7G0XkW_vqnrZS1JWpK-gDaDuem9oQPh77uGDQ"
       }
     },
     {
@@ -290,7 +290,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000017",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:23.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -304,7 +304,7 @@
         "reason": "host-unavailable",
         "key_id": "tool-key-2026",
         "signer_seq": 6,
-        "signature": "Uwq3pt0AAc_MA79VhC3LAwu1KBotwFDCBr1yXdBbNZlZGJkWPRkMIR5868qjWkXEvZpOoYkncRBYZEnfgImmCQ"
+        "signature": "is8k0lTkdAkQLuh8FgD-N13PUGwndkwZ7ziOkLYnCI_3RPgKNnNbh_LgtCAciCvKpwwlXk7f51nqyZyXLjHNDg"
       }
     },
     {
@@ -320,7 +320,7 @@
       },
       "event": {
         "id": "00000000-0000-4000-8000-000000000017",
-        "spec_version": "auditable-mcp/0.3",
+        "spec_version": "auditable-mcp/0.4",
         "ts": "2026-07-15T00:00:23.000Z",
         "session_id": "0198f3a2-5c1e-7000-8000-00000000abc2",
         "action_type": "db.write",
@@ -333,7 +333,7 @@
         "outcome": "attempted",
         "key_id": "tool-key-2026",
         "signer_seq": 5,
-        "signature": "-UjW-ZwgzeE3hZQMzPfhVMg6Mm57b41DGStn-2DoP0SCFGpYvIZdx6gzSHwS9_j1kcTbsrPFoE2UuXuhexgbAA"
+        "signature": "cyJrtWNC0EaIGTjTMkyBsxMpIXhMH50sZjf4Mh7Jr-9-zRzr-7G0XkW_vqnrZS1JWpK-gDaDuem9oQPh77uGDQ"
       }
     }
   ]

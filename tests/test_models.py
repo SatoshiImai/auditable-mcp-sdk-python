@@ -12,9 +12,11 @@ from auditable_mcp.models import (
     RejectResponse,
     TargetResource,
     UnavailableResponse,
+    first_sealed_validation_error,
 )
 
 SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
+TS_WITHOUT_SECONDS = '2026-07-15T00:00Z'
 
 _ADAPTER: TypeAdapter[object] = TypeAdapter(AttemptResponse)
 
@@ -164,5 +166,42 @@ def test_a_half_present_countersign_pair_is_refused() -> None:
         with pytest.raises(ValidationError):
             _ADAPTER.validate_python({**base, **half})
             # end with
+        # end for
+    # end def
+
+
+def test_a_current_timestamp_without_seconds_is_refused() -> None:
+    """`ts` and `host_ts` are RFC 3339 date-times, whose seconds are required (§4, §7.1)."""
+    event = _minimal_event().to_wire()
+    event['ts'] = TS_WITHOUT_SECONDS
+    with pytest.raises(ValidationError):
+        AuditEvent.model_validate(event)
+        # end with
+    error = first_sealed_validation_error(event)
+    assert error is not None
+    assert error.startswith('ts: ')
+    with pytest.raises(ValidationError):
+        _ADAPTER.validate_python(
+            {
+                'status': 'accept',
+                'seq': 0,
+                'record_hash': '0' * 64,
+                'host_ts': TS_WITHOUT_SECONDS,
+                'previous_hash': '0' * 64,
+            }
+        )
+        # end with
+    # end def
+
+
+def test_an_earlier_record_without_seconds_still_validates() -> None:
+    """A record sealed before 0.4 is read against its own pattern, which made seconds optional (§11.4)."""
+    v03 = _minimal_event().to_wire()
+    v03.update(spec_version='auditable-mcp/0.3', ts=TS_WITHOUT_SECONDS)
+    assert first_sealed_validation_error(v03) is None
+    for version in ('auditable-mcp/0.1', 'auditable-mcp/0.2'):
+        earlier = {key: value for key, value in v03.items() if key != 'session_id'}
+        earlier.update(spec_version=version, call_id='call-1')
+        assert first_sealed_validation_error(earlier) is None, version
         # end for
     # end def
