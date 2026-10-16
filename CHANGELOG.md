@@ -3,7 +3,7 @@
 Changes to the Auditable MCP Python SDK. The SDK package version is independent of the
 `spec_version` it implements (currently `auditable-mcp/0.4`); this file tracks the package.
 
-## 0.4.0 - unreleased
+## 0.4.0 - 2026-10-16
 
 Tracking spec `auditable-mcp/0.4`. The TypeScript SDK's 0.4.0 is the same change.
 
