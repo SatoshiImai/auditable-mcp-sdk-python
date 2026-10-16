@@ -366,6 +366,7 @@ _OPTIONAL_EVENT_MEMBERS = (
     'reason',
     'action_context',
     'action_context_hash',
+    'action_context_salted_hash',
     'signer_seq',
     'key_id',
     'signature',
