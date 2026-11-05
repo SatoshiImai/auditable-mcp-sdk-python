@@ -62,7 +62,7 @@ Requires Python 3.12+.
 For development, isolation is pinned to a dedicated pyenv virtualenv and uv is the installer:
 
 ```bash
-make env/init      # create the 3.14.7-amcp virtualenv and install the project + dev deps
+make env/init      # create the 3.14.10-amcp virtualenv and install the project + dev deps
 make test          # unit + conformance vectors
 make lint          # ruff + mypy --strict
 ```
